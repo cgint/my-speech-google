@@ -267,11 +267,14 @@ defmodule SttPlayground.STT.GoogleGrpc do
 
       {:ok, ts_pid} = ts_mod.start_link(ts_opts ++ extra_ts_opts)
 
+      trace? = Keyword.get(opts, :trace, env_bool("STT_TRACE", false))
+
       state = %{
         session_id: session_id,
         owner_pid: owner_pid,
         ts_mod: ts_mod,
         ts_pid: ts_pid,
+        trace?: trace?,
         chunk_count: 0,
         stop_requested: false,
         finalize_after_ms: finalize_after_ms,
@@ -324,6 +327,12 @@ defmodule SttPlayground.STT.GoogleGrpc do
     @impl true
     def handle_info({:stt_event, %Transcript{} = transcript}, state) do
       content = (transcript.content || "") |> String.trim()
+
+      if state.trace? and content != "" do
+        Logger.debug(
+          "[stt-trace][#{state.session_id}] is_final=#{inspect(transcript.is_final)} content=#{inspect(content)}"
+        )
+      end
 
       state =
         cond do
@@ -437,6 +446,50 @@ defmodule SttPlayground.STT.GoogleGrpc do
 
         _ ->
           acc
+      end
+    end
+
+    defp env_bool(name, default) do
+      case System.get_env(name) do
+        nil ->
+          default
+
+        "" ->
+          default
+
+        "1" ->
+          true
+
+        "true" ->
+          true
+
+        "TRUE" ->
+          true
+
+        "yes" ->
+          true
+
+        "YES" ->
+          true
+
+        "0" ->
+          false
+
+        "false" ->
+          false
+
+        "FALSE" ->
+          false
+
+        "no" ->
+          false
+
+        "NO" ->
+          false
+
+        other ->
+          Logger.warning("[stt-google-grpc] invalid boolean env #{name}=#{inspect(other)}")
+          default
       end
     end
 
