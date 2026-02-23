@@ -205,14 +205,14 @@ defmodule SttPlayground.STT.GoogleGrpc do
 
     defp endpoint_from_location(_), do: nil
 
-    defp endpoint_from_recognizer(recognizer) when is_binary(recognizer) do
+    defp location_from_recognizer(recognizer) when is_binary(recognizer) do
       case Regex.run(~r{/locations/([^/]+)/recognizers/}, recognizer) do
-        [_, location] -> endpoint_from_location(location)
+        [_, location] -> location
         _ -> nil
       end
     end
 
-    defp endpoint_from_recognizer(_), do: nil
+    defp location_from_recognizer(_), do: nil
 
     def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
@@ -239,8 +239,16 @@ defmodule SttPlayground.STT.GoogleGrpc do
 
       endpoint =
         Keyword.get(opts, :endpoint) ||
-          endpoint_from_recognizer(recognizer) ||
-          endpoint_from_location(System.get_env("STT_LOCATION") || "eu")
+          case location_from_recognizer(recognizer) do
+            "global" ->
+              nil
+
+            nil ->
+              endpoint_from_location(System.get_env("STT_LOCATION") || "eu")
+
+            location ->
+              endpoint_from_location(location)
+          end
 
       ts_opts =
         [
