@@ -144,4 +144,35 @@ defmodule SttPlayground.STT.GoogleGrpcTest do
                     }},
                    500
   end
+
+  test "Session can deliver events via PubSub (deliver: :pubsub)" do
+    session_id = "s3"
+
+    Phoenix.PubSub.subscribe(SttPlayground.PubSub, SttPlayground.EventBus.stt_topic(session_id))
+
+    {:ok, pid} =
+      Session.start_link(
+        session_id: session_id,
+        owner_pid: self(),
+        deliver: :pubsub,
+        recognizer: "projects/p/locations/eu/recognizers/_",
+        finalize_after_ms: 20,
+        transcription_server_module: FakeTranscriptionServer
+      )
+
+    send(pid, {:stt_event, %ExGoogleSTT.Transcript{content: "hello", is_final: false}})
+
+    assert_receive {:stt_event,
+                    %{
+                      "event" => "partial",
+                      "session_id" => ^session_id,
+                      "final_text" => "",
+                      "interim_text" => "hello"
+                    }},
+                   200
+
+    Session.stop(pid)
+
+    assert_receive {:stt_event, %{"event" => "final", "session_id" => ^session_id}}, 500
+  end
 end

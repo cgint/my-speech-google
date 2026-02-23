@@ -172,8 +172,12 @@ defmodule SttPlaygroundWeb.SttLive do
     else
       session_id = Integer.to_string(System.unique_integer([:positive]))
 
-      case SttPlayground.STT.start_session(session_id, self()) do
+      case SttPlayground.STT.start_session(session_id, self(), deliver: :pubsub) do
         :ok ->
+          if connected?(socket) do
+            _ = SttPlayground.EventBus.subscribe_stt(session_id)
+          end
+
           Logger.info("[live][#{session_id}] start")
 
           {:noreply,
@@ -200,6 +204,7 @@ defmodule SttPlaygroundWeb.SttLive do
   @impl true
   def handle_event("stop_stream", _params, socket) do
     if session_id = socket.assigns.session_id do
+      _ = SttPlayground.EventBus.unsubscribe_stt(session_id)
       _ = SttPlayground.STT.stop_session(session_id)
       Logger.info("[live][#{session_id}] stop")
     end

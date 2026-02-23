@@ -62,6 +62,7 @@ defmodule SttPlayground.STT.GoogleGrpc do
       [
         session_id: session_id,
         owner_pid: owner_pid,
+        deliver: Keyword.get(opts, :deliver, :direct),
         recognizer: state.recognizer,
         language_codes: state.language_codes,
         model: state.model,
@@ -224,6 +225,8 @@ defmodule SttPlayground.STT.GoogleGrpc do
       session_id = Keyword.fetch!(opts, :session_id)
       owner_pid = Keyword.fetch!(opts, :owner_pid)
 
+      deliver = Keyword.get(opts, :deliver, :direct)
+
       recognizer = Keyword.get(opts, :recognizer)
       language_codes = Keyword.get(opts, :language_codes, ["en-US"])
       model = Keyword.get(opts, :model, "latest_long")
@@ -272,6 +275,7 @@ defmodule SttPlayground.STT.GoogleGrpc do
       state = %{
         session_id: session_id,
         owner_pid: owner_pid,
+        deliver: deliver,
         ts_mod: ts_mod,
         ts_pid: ts_pid,
         trace?: trace?,
@@ -293,23 +297,17 @@ defmodule SttPlayground.STT.GoogleGrpc do
         _ = state.ts_mod.process_audio(state.ts_pid, s16le)
       else
         :error ->
-          send(state.owner_pid, {
-            :stt_event,
-            %{
-              "event" => "error",
-              "session_id" => state.session_id,
-              "message" => "invalid base64 audio"
-            }
+          deliver(state, %{
+            "event" => "error",
+            "session_id" => state.session_id,
+            "message" => "invalid base64 audio"
           })
 
         {:error, reason} ->
-          send(state.owner_pid, {
-            :stt_event,
-            %{
-              "event" => "error",
-              "session_id" => state.session_id,
-              "message" => "audio conversion failed: #{inspect(reason)}"
-            }
+          deliver(state, %{
+            "event" => "error",
+            "session_id" => state.session_id,
+            "message" => "audio conversion failed: #{inspect(reason)}"
           })
       end
 
@@ -350,16 +348,13 @@ defmodule SttPlayground.STT.GoogleGrpc do
       combined = combine_text(state.final_segments, state.last_interim)
 
       if combined != "" do
-        send(state.owner_pid, {
-          :stt_event,
-          %{
-            "event" => "partial",
-            "session_id" => state.session_id,
-            "text" => combined,
-            "final_text" => final_text,
-            "interim_text" => state.last_interim,
-            "chunk_count" => state.chunk_count
-          }
+        deliver(state, %{
+          "event" => "partial",
+          "session_id" => state.session_id,
+          "text" => combined,
+          "final_text" => final_text,
+          "interim_text" => state.last_interim,
+          "chunk_count" => state.chunk_count
         })
       end
 
@@ -371,13 +366,10 @@ defmodule SttPlayground.STT.GoogleGrpc do
     def handle_info({:stt_event, :stream_timeout}, state), do: {:noreply, state}
 
     def handle_info({:stt_event, %Error{} = err}, state) do
-      send(state.owner_pid, {
-        :stt_event,
-        %{
-          "event" => "error",
-          "session_id" => state.session_id,
-          "message" => "stt failed: #{err.message}"
-        }
+      deliver(state, %{
+        "event" => "error",
+        "session_id" => state.session_id,
+        "message" => "stt failed: #{err.message}"
       })
 
       {:stop, :normal, state}
@@ -386,19 +378,35 @@ defmodule SttPlayground.STT.GoogleGrpc do
     def handle_info(:finalize, state) do
       final_text = combine_text(state.final_segments, state.last_interim)
 
-      send(state.owner_pid, {
-        :stt_event,
-        %{
-          "event" => "final",
-          "session_id" => state.session_id,
-          "text" => final_text
-        }
+      deliver(state, %{
+        "event" => "final",
+        "session_id" => state.session_id,
+        "text" => final_text
       })
 
       {:stop, :normal, state}
     end
 
     def handle_info(_msg, state), do: {:noreply, state}
+
+    defp deliver(%{deliver: :pubsub, session_id: session_id}, payload) when is_map(payload) do
+      SttPlayground.EventBus.broadcast_stt(session_id, payload)
+    end
+
+    defp deliver(%{deliver: :direct, owner_pid: owner_pid}, payload)
+         when is_pid(owner_pid) and is_map(payload) do
+      send(owner_pid, {:stt_event, payload})
+      :ok
+    end
+
+    defp deliver(%{deliver: :both, session_id: session_id, owner_pid: owner_pid}, payload)
+         when is_pid(owner_pid) and is_map(payload) do
+      SttPlayground.EventBus.broadcast_stt(session_id, payload)
+      send(owner_pid, {:stt_event, payload})
+      :ok
+    end
+
+    defp deliver(_state, _payload), do: :ok
 
     defp schedule_finalize(state) do
       if state.finalize_timer, do: Process.cancel_timer(state.finalize_timer)

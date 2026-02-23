@@ -10,8 +10,11 @@ defmodule SttPlayground.STT.PythonPort do
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
-  def start_session(session_id, owner_pid),
-    do: GenServer.call(__MODULE__, {:start_session, session_id, owner_pid})
+  def start_session(session_id, owner_pid, opts),
+    do: GenServer.call(__MODULE__, {:start_session, session_id, owner_pid, opts})
+
+  # Backwards-compatible arity-2
+  def start_session(session_id, owner_pid), do: start_session(session_id, owner_pid, [])
 
   def push_chunk(session_id, pcm_b64),
     do: GenServer.cast(__MODULE__, {:audio_chunk, session_id, pcm_b64})
@@ -87,12 +90,14 @@ defmodule SttPlayground.STT.PythonPort do
   end
 
   @impl true
-  def handle_call({:start_session, session_id, owner_pid}, _from, state) do
+  def handle_call({:start_session, session_id, owner_pid, opts}, _from, state) do
     ref = Process.monitor(owner_pid)
+
+    deliver = Keyword.get(opts, :deliver, :direct)
 
     state =
       state
-      |> put_in([:sessions, session_id], owner_pid)
+      |> put_in([:sessions, session_id], %{owner_pid: owner_pid, deliver: deliver})
       |> put_in([:owner_refs, ref], session_id)
       |> put_in([:session_refs, session_id], ref)
       |> put_in([:queues, session_id], :queue.new())
@@ -158,9 +163,7 @@ defmodule SttPlayground.STT.PythonPort do
       {:ok, %{"event" => event} = msg} ->
         session_id = msg["session_id"]
 
-        if owner = lookup_owner(state, session_id) do
-          send(owner, {:stt_event, msg})
-        end
+        _ = deliver(state, session_id, msg)
 
         if event == "ready" do
           Logger.info("[stt-port] python worker ready")
@@ -267,30 +270,29 @@ defmodule SttPlayground.STT.PythonPort do
   end
 
   defp notify_overload(state, session_id, queue_depth, dropped_count) do
-    if owner = Map.get(state.sessions, session_id) do
-      send(owner, {
-        :stt_event,
-        %{
-          "event" => "overload",
-          "session_id" => session_id,
-          "queue_depth" => queue_depth,
-          "dropped_count" => dropped_count,
-          "policy" => Atom.to_string(state.overload_policy)
-        }
-      })
-    end
+    msg = %{
+      "event" => "overload",
+      "session_id" => session_id,
+      "queue_depth" => queue_depth,
+      "dropped_count" => dropped_count,
+      "policy" => Atom.to_string(state.overload_policy)
+    }
+
+    _ = deliver(state, session_id, msg)
   end
 
   defp stop_session_and_cleanup(state, session_id, reason) do
-    case Map.fetch(state.sessions, session_id) do
-      :error ->
+    case Map.pop(state.sessions, session_id) do
+      {nil, _sessions} ->
         state
 
-      {:ok, owner_pid} ->
+      {session_info, sessions} ->
+        state = %{state | sessions: sessions}
+
         state =
           state
           |> cleanup_session_maps(session_id)
-          |> put_in([:stopping_sessions, session_id], owner_pid)
+          |> put_in([:stopping_sessions, session_id], session_info)
 
         Process.send_after(self(), {:expire_stopping_session, session_id}, state.stopping_ttl_ms)
         send_to_python(state.port, %{cmd: "stop_session", session_id: session_id})
@@ -358,10 +360,34 @@ defmodule SttPlayground.STT.PythonPort do
     end
   end
 
-  defp lookup_owner(_state, nil), do: nil
+  defp lookup_session_info(_state, nil), do: nil
 
-  defp lookup_owner(state, session_id) do
+  defp lookup_session_info(state, session_id) do
     Map.get(state.sessions, session_id) || Map.get(state.stopping_sessions, session_id)
+  end
+
+  defp deliver(_state, nil, _msg), do: :ok
+
+  defp deliver(state, session_id, msg) do
+    case lookup_session_info(state, session_id) do
+      nil ->
+        :ok
+
+      %{owner_pid: owner_pid, deliver: :direct} when is_pid(owner_pid) ->
+        send(owner_pid, {:stt_event, msg})
+        :ok
+
+      %{deliver: :pubsub} ->
+        SttPlayground.EventBus.broadcast_stt(session_id, msg)
+
+      %{owner_pid: owner_pid, deliver: :both} when is_pid(owner_pid) ->
+        SttPlayground.EventBus.broadcast_stt(session_id, msg)
+        send(owner_pid, {:stt_event, msg})
+        :ok
+
+      _ ->
+        :ok
+    end
   end
 
   defp schedule_drain(interval_ms) do
