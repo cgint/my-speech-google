@@ -19,8 +19,11 @@ defmodule SttPlayground.TTS.GoogleHttp do
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
-  def start_session(session_id, owner_pid, _opts \\ []),
-    do: GenServer.call(__MODULE__, {:start_session, session_id, owner_pid})
+  def start_session(session_id, owner_pid, opts),
+    do: GenServer.call(__MODULE__, {:start_session, session_id, owner_pid, opts})
+
+  # Backwards-compatible arity-2
+  def start_session(session_id, owner_pid), do: start_session(session_id, owner_pid, [])
 
   def speak_text(session_id, text),
     do: GenServer.cast(__MODULE__, {:speak_text, session_id, text})
@@ -81,16 +84,20 @@ defmodule SttPlayground.TTS.GoogleHttp do
   def handle_info(_msg, state), do: {:noreply, state}
 
   @impl true
-  def handle_call({:start_session, session_id, owner_pid}, _from, state) do
+  def handle_call({:start_session, session_id, owner_pid, opts}, _from, state) do
     ref = Process.monitor(owner_pid)
+    deliver = Keyword.get(opts, :deliver, :direct)
 
     state =
       state
-      |> put_in([:sessions, session_id], owner_pid)
+      |> put_in([:sessions, session_id], %{owner_pid: owner_pid, deliver: deliver})
       |> put_in([:owner_refs, ref], session_id)
       |> put_in([:session_refs, session_id], ref)
 
-    send(owner_pid, {:tts_event, %{"event" => "session_started", "session_id" => session_id}})
+    deliver_tts(%{owner_pid: owner_pid, deliver: deliver}, session_id, %{
+      "event" => "session_started",
+      "session_id" => session_id
+    })
 
     {:reply, :ok, state}
   end
@@ -106,7 +113,7 @@ defmodule SttPlayground.TTS.GoogleHttp do
       :error ->
         {:noreply, state}
 
-      {:ok, owner_pid} ->
+      {:ok, %{owner_pid: owner_pid, deliver: deliver}} ->
         cfg =
           Map.take(state, [
             :api_url,
@@ -125,7 +132,7 @@ defmodule SttPlayground.TTS.GoogleHttp do
         text = String.trim(to_string(text))
 
         Task.start(fn ->
-          speak_text_task(cfg, owner_pid, session_id, text)
+          speak_text_task(cfg, %{owner_pid: owner_pid, deliver: deliver}, session_id, text)
         end)
 
         {:noreply, state}
@@ -147,9 +154,13 @@ defmodule SttPlayground.TTS.GoogleHttp do
     update_in(state.sessions, &Map.delete(&1, session_id))
   end
 
-  defp speak_text_task(cfg, owner_pid, session_id, text) do
+  defp speak_text_task(cfg, session_info, session_id, text) do
     if text == "" do
-      send(owner_pid, {:tts_event, %{"event" => "session_done", "session_id" => session_id}})
+      deliver_tts(session_info, session_id, %{
+        "event" => "session_done",
+        "session_id" => session_id
+      })
+
       return(:ok)
     end
 
@@ -160,33 +171,49 @@ defmodule SttPlayground.TTS.GoogleHttp do
       |> chunk_f32le(cfg.audio_chunk_samples)
       |> Enum.with_index()
       |> Enum.each(fn {chunk, seq} ->
-        send(owner_pid, {
-          :tts_event,
-          %{
-            "event" => "audio_chunk",
-            "session_id" => session_id,
-            "seq" => seq,
-            "pcm_b64" => Base.encode64(chunk),
-            "sample_rate" => sample_rate,
-            "channels" => 1,
-            "format" => "f32le"
-          }
+        deliver_tts(session_info, session_id, %{
+          "event" => "audio_chunk",
+          "session_id" => session_id,
+          "seq" => seq,
+          "pcm_b64" => Base.encode64(chunk),
+          "sample_rate" => sample_rate,
+          "channels" => 1,
+          "format" => "f32le"
         })
       end)
 
-      send(owner_pid, {:tts_event, %{"event" => "session_done", "session_id" => session_id}})
+      deliver_tts(session_info, session_id, %{
+        "event" => "session_done",
+        "session_id" => session_id
+      })
     else
       {:error, reason} ->
-        send(owner_pid, {
-          :tts_event,
-          %{
-            "event" => "error",
-            "session_id" => session_id,
-            "message" => "tts failed: #{inspect(reason)}"
-          }
+        deliver_tts(session_info, session_id, %{
+          "event" => "error",
+          "session_id" => session_id,
+          "message" => "tts failed: #{inspect(reason)}"
         })
     end
   end
+
+  defp deliver_tts(%{deliver: :pubsub}, session_id, payload) when is_map(payload) do
+    SttPlayground.EventBus.broadcast_tts(session_id, payload)
+  end
+
+  defp deliver_tts(%{deliver: :direct, owner_pid: owner_pid}, _session_id, payload)
+       when is_pid(owner_pid) and is_map(payload) do
+    send(owner_pid, {:tts_event, payload})
+    :ok
+  end
+
+  defp deliver_tts(%{deliver: :both, owner_pid: owner_pid}, session_id, payload)
+       when is_pid(owner_pid) and is_map(payload) do
+    SttPlayground.EventBus.broadcast_tts(session_id, payload)
+    send(owner_pid, {:tts_event, payload})
+    :ok
+  end
+
+  defp deliver_tts(_session_info, _session_id, _payload), do: :ok
 
   defp synthesize_pcm16(cfg, token, text) do
     body =

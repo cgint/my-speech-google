@@ -122,7 +122,7 @@ defmodule SttPlaygroundWeb.SttLive do
     if text == "" do
       {:noreply, socket}
     else
-      case start_tts_session_and_speak(text) do
+      case start_tts_session_and_speak(text, socket) do
         {:ok, session_id, spoken_text} ->
           {:noreply,
            socket
@@ -146,7 +146,7 @@ defmodule SttPlaygroundWeb.SttLive do
     else
       case transform_text_with_dspy(transcript) do
         {:ok, ai_output, ai_status} ->
-          case start_tts_session_and_speak(ai_output) do
+          case start_tts_session_and_speak(ai_output, socket) do
             {:ok, session_id, spoken_text} ->
               {:noreply,
                socket
@@ -280,12 +280,16 @@ defmodule SttPlaygroundWeb.SttLive do
     end
   end
 
-  defp start_tts_session_and_speak(text) do
+  defp start_tts_session_and_speak(text, socket) do
     if Process.whereis(SttPlayground.TTS.provider_module()) do
       session_id = Integer.to_string(System.unique_integer([:positive]))
 
-      case SttPlayground.TTS.start_session(session_id, self()) do
+      case SttPlayground.TTS.start_session(session_id, self(), deliver: :pubsub) do
         :ok ->
+          if connected?(socket) do
+            _ = SttPlayground.EventBus.subscribe_tts(session_id)
+          end
+
           _ = SttPlayground.TTS.speak_text(session_id, text)
           {:ok, session_id, text}
 
@@ -393,6 +397,8 @@ defmodule SttPlaygroundWeb.SttLive do
         _ = SttPlayground.TTS.stop_session(sid)
       end
 
+      _ = SttPlayground.EventBus.unsubscribe_tts(sid)
+
       {:noreply,
        socket
        |> assign(:tts_status, "done")
@@ -400,6 +406,18 @@ defmodule SttPlaygroundWeb.SttLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info(
+        {:tts_event, %{"event" => "error", "message" => msg, "session_id" => sid}},
+        socket
+      ) do
+    _ = SttPlayground.EventBus.unsubscribe_tts(sid)
+
+    {:noreply,
+     socket
+     |> assign(:tts_status, "error: #{msg}")
+     |> assign(:tts_session_id, nil)}
   end
 
   def handle_info({:tts_event, %{"event" => "error", "message" => msg}}, socket) do

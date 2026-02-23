@@ -4,8 +4,11 @@ defmodule SttPlayground.TTS.PythonPort do
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
-  def start_session(session_id, owner_pid),
-    do: GenServer.call(__MODULE__, {:start_session, session_id, owner_pid})
+  def start_session(session_id, owner_pid, opts),
+    do: GenServer.call(__MODULE__, {:start_session, session_id, owner_pid, opts})
+
+  # Backwards-compatible arity-2
+  def start_session(session_id, owner_pid), do: start_session(session_id, owner_pid, [])
 
   def speak_text(session_id, text),
     do: GenServer.cast(__MODULE__, {:speak_text, session_id, text})
@@ -55,12 +58,13 @@ defmodule SttPlayground.TTS.PythonPort do
   end
 
   @impl true
-  def handle_call({:start_session, session_id, owner_pid}, _from, state) do
+  def handle_call({:start_session, session_id, owner_pid, opts}, _from, state) do
     ref = Process.monitor(owner_pid)
+    deliver = Keyword.get(opts, :deliver, :direct)
 
     state =
       state
-      |> put_in([:sessions, session_id], owner_pid)
+      |> put_in([:sessions, session_id], %{owner_pid: owner_pid, deliver: deliver})
       |> put_in([:owner_refs, ref], session_id)
       |> put_in([:session_refs, session_id], ref)
 
@@ -86,9 +90,7 @@ defmodule SttPlayground.TTS.PythonPort do
       {:ok, %{"event" => event} = msg} ->
         session_id = msg["session_id"]
 
-        if owner = lookup_owner(state, session_id) do
-          send(owner, {:tts_event, msg})
-        end
+        _ = deliver(state, session_id, msg)
 
         if event == "ready" do
           Logger.info("[tts-port] python worker ready")
@@ -145,9 +147,33 @@ defmodule SttPlayground.TTS.PythonPort do
     :ok
   end
 
-  defp lookup_owner(_state, nil), do: nil
+  defp lookup_session_info(_state, nil), do: nil
 
-  defp lookup_owner(state, session_id), do: Map.get(state.sessions, session_id)
+  defp lookup_session_info(state, session_id), do: Map.get(state.sessions, session_id)
+
+  defp deliver(_state, nil, _msg), do: :ok
+
+  defp deliver(state, session_id, msg) do
+    case lookup_session_info(state, session_id) do
+      nil ->
+        :ok
+
+      %{owner_pid: owner_pid, deliver: :direct} when is_pid(owner_pid) ->
+        send(owner_pid, {:tts_event, msg})
+        :ok
+
+      %{deliver: :pubsub} ->
+        SttPlayground.EventBus.broadcast_tts(session_id, msg)
+
+      %{owner_pid: owner_pid, deliver: :both} when is_pid(owner_pid) ->
+        SttPlayground.EventBus.broadcast_tts(session_id, msg)
+        send(owner_pid, {:tts_event, msg})
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
 
   defp cleanup_session(state, session_id) do
     state =
