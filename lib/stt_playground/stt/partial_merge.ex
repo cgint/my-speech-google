@@ -2,6 +2,7 @@ defmodule SttPlayground.STT.PartialMerge do
   @moduledoc false
 
   @max_overlap_words 12
+  @replace_prefix_min_words 3
 
   @doc """
   Merges a stream of partial transcripts into a growing transcript.
@@ -31,22 +32,68 @@ defmodule SttPlayground.STT.PartialMerge do
       String.starts_with?(incoming, prev) ->
         incoming
 
+      String.starts_with?(prev, incoming) ->
+        prev
+
       true ->
         prev_words = words(prev)
         incoming_words = words(incoming)
 
-        overlap = max_overlap(prev_words, incoming_words)
+        # If the provider is sending a full-utterance hypothesis that refines
+        # the previous one (common prefix, small changes at the end), prefer
+        # replacing instead of appending.
+        prefix_len = common_prefix_len(prev_words, incoming_words)
 
-        merged_words = prev_words ++ Enum.drop(incoming_words, overlap)
+        cond do
+          prefix_len >= @replace_prefix_min_words ->
+            # Avoid going backwards if incoming is just a shorter prefix.
+            if String.starts_with?(prev, incoming) and length(prev_words) > length(incoming_words) do
+              prev
+            else
+              incoming
+            end
 
-        merged_words
-        |> Enum.join(" ")
-        |> String.trim()
+          true ->
+            overlap = max_overlap(prev_words, incoming_words)
+
+            cond do
+              overlap > 0 ->
+                (prev_words ++ Enum.drop(incoming_words, overlap))
+                |> Enum.join(" ")
+                |> String.trim()
+
+              true ->
+                # No clear relation: prefer latest hypothesis to avoid runaway repetition.
+                incoming
+            end
+        end
     end
   end
 
   defp words(text) do
-    String.split(text, ~r/\s+/, trim: true)
+    text
+    |> String.split(~r/\s+/, trim: true)
+  end
+
+  defp common_prefix_len(a_words, b_words) do
+    max_k = min(length(a_words), length(b_words))
+
+    Enum.reduce_while(0..(max_k - 1), 0, fn idx, _acc ->
+      a = normalize_word(Enum.at(a_words, idx))
+      b = normalize_word(Enum.at(b_words, idx))
+
+      if a != "" and a == b do
+        {:cont, idx + 1}
+      else
+        {:halt, idx}
+      end
+    end)
+  end
+
+  defp normalize_word(word) when is_binary(word) do
+    word
+    |> String.downcase()
+    |> String.replace(~r/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u, "")
   end
 
   defp max_overlap(prev_words, incoming_words) do

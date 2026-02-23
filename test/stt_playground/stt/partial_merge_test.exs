@@ -19,6 +19,19 @@ defmodule SttPlayground.STT.PartialMergeTest do
     assert PartialMerge.merge("hello", "hello there") == "hello there"
   end
 
+  test "incoming shorter prefix does not regress transcript" do
+    assert PartialMerge.merge("hello there what is going on", "hello there") ==
+             "hello there what is going on"
+  end
+
+  test "replaces full-utterance hypothesis refinements (common prefix)" do
+    assert PartialMerge.merge("how is the weather in Lin", "how is the weather in Linz") ==
+             "how is the weather in Linz"
+
+    assert PartialMerge.merge("how is the weather in Linz", "how is the weather in Linz today") ==
+             "how is the weather in Linz today"
+  end
+
   test "empty incoming keeps previous" do
     assert PartialMerge.merge("hello there", "") == "hello there"
     assert PartialMerge.merge("hello there", "   ") == "hello there"
