@@ -33,6 +33,7 @@ defmodule SttPlayground.TTS.GoogleHttp do
       api_url: Keyword.get(opts, :api_url, @default_api_url),
       scope: Keyword.get(opts, :scope, @default_scope),
       token_source: Keyword.get(opts, :token_source, :auto),
+      quota_project_id: Keyword.get(opts, :quota_project_id, quota_project_id_from_env_or_adc()),
       finch_name: Keyword.get(opts, :finch_name, SttPlayground.Finch),
       http_post: Keyword.get(opts, :http_post, &__MODULE__.finch_post/4),
       token_fetcher: Keyword.get(opts, :token_fetcher, &__MODULE__.fetch_token/2),
@@ -111,6 +112,7 @@ defmodule SttPlayground.TTS.GoogleHttp do
             :api_url,
             :scope,
             :token_source,
+            :quota_project_id,
             :http_post,
             :token_fetcher,
             :finch_name,
@@ -194,10 +196,12 @@ defmodule SttPlayground.TTS.GoogleHttp do
         audioConfig: %{audioEncoding: "LINEAR16", sampleRateHertz: cfg.sample_rate_hz}
       })
 
-    headers = [
-      {"authorization", "Bearer #{token}"},
-      {"content-type", "application/json"}
-    ]
+    headers =
+      [
+        {"authorization", "Bearer #{token}"},
+        {"content-type", "application/json"}
+      ]
+      |> maybe_put_quota_project(cfg.quota_project_id)
 
     with {:ok, status, resp_body} <- cfg.http_post.(cfg.finch_name, cfg.api_url, headers, body),
          :ok <- ensure_200(status, resp_body),
@@ -242,6 +246,43 @@ defmodule SttPlayground.TTS.GoogleHttp do
       other -> {:error, other}
     end
   end
+
+  defp quota_project_id_from_env_or_adc do
+    env = System.get_env("GOOGLE_CLOUD_QUOTA_PROJECT")
+
+    cond do
+      is_binary(env) and String.trim(env) != "" ->
+        String.trim(env)
+
+      true ->
+        adc_quota_project_id()
+    end
+  end
+
+  defp adc_quota_project_id do
+    path =
+      System.get_env("GOOGLE_APPLICATION_CREDENTIALS") ||
+        Path.expand("~/.config/gcloud/application_default_credentials.json")
+
+    with {:ok, bin} <- File.read(path),
+         {:ok, json} <- Jason.decode(bin),
+         quota when is_binary(quota) <- Map.get(json, "quota_project_id"),
+         quota = String.trim(quota),
+         false <- quota == "" do
+      quota
+    else
+      _ -> nil
+    end
+  end
+
+  defp maybe_put_quota_project(headers, quota_project_id)
+
+  defp maybe_put_quota_project(headers, quota_project_id)
+       when is_binary(quota_project_id) and quota_project_id != "" do
+    [{"x-goog-user-project", quota_project_id} | headers]
+  end
+
+  defp maybe_put_quota_project(headers, _), do: headers
 
   defp fetch_audio_content(%{"audioContent" => audio}) when is_binary(audio), do: {:ok, audio}
   defp fetch_audio_content(map), do: {:error, {:missing_audio_content, map}}
