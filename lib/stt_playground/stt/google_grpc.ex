@@ -346,6 +346,7 @@ defmodule SttPlayground.STT.GoogleGrpc do
             %{state | last_interim: content}
         end
 
+      final_text = state.final_segments |> Enum.join(" ") |> String.trim()
       combined = combine_text(state.final_segments, state.last_interim)
 
       if combined != "" do
@@ -355,6 +356,8 @@ defmodule SttPlayground.STT.GoogleGrpc do
             "event" => "partial",
             "session_id" => state.session_id,
             "text" => combined,
+            "final_text" => final_text,
+            "interim_text" => state.last_interim,
             "chunk_count" => state.chunk_count
           }
         })

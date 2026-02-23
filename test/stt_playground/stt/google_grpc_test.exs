@@ -31,7 +31,9 @@ defmodule SttPlayground.STT.GoogleGrpcTest do
                     %{
                       "event" => "partial",
                       "session_id" => "s1",
-                      "text" => "hello"
+                      "text" => "hello",
+                      "final_text" => "",
+                      "interim_text" => "hello"
                     }},
                    200
 
@@ -42,7 +44,9 @@ defmodule SttPlayground.STT.GoogleGrpcTest do
                     %{
                       "event" => "partial",
                       "session_id" => "s1",
-                      "text" => "world"
+                      "text" => "world",
+                      "final_text" => "world",
+                      "interim_text" => ""
                     }},
                    200
 

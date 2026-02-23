@@ -193,6 +193,7 @@ def streaming_thread(session: Session) -> None:
                     last_interim = text
 
                 # During recording we only emit partials.
+                final_text = " ".join([t for t in final_segments if t]).strip()
                 combined = " ".join([t for t in (final_segments + ([last_interim] if last_interim else [])) if t])
                 if combined:
                     send_packet_or_exit(
@@ -200,6 +201,8 @@ def streaming_thread(session: Session) -> None:
                             "event": "partial",
                             "session_id": session.session_id,
                             "text": combined,
+                            "final_text": final_text,
+                            "interim_text": last_interim,
                             "chunk_count": session.chunk_count,
                         }
                     )

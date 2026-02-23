@@ -11,6 +11,8 @@ defmodule SttPlaygroundWeb.SttLive do
      |> assign(:status, "idle")
      |> assign(:session_id, nil)
      |> assign(:transcript, "")
+     |> assign(:transcript_final, "")
+     |> assign(:transcript_interim, "")
      |> assign(:tts_text, "")
      |> assign(:tts_status, "idle")
      |> assign(:tts_session_id, nil)}
@@ -90,7 +92,13 @@ defmodule SttPlaygroundWeb.SttLive do
   end
 
   @impl true
-  def handle_event("clear", _params, socket), do: {:noreply, assign(socket, :transcript, "")}
+  def handle_event("clear", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:transcript, "")
+     |> assign(:transcript_final, "")
+     |> assign(:transcript_interim, "")}
+  end
 
   @impl true
   def handle_event("tts_change", %{"tts" => %{"text" => text}}, socket) do
@@ -99,7 +107,12 @@ defmodule SttPlaygroundWeb.SttLive do
 
   @impl true
   def handle_event("transcript_change", %{"transcript" => %{"text" => text}}, socket) do
-    {:noreply, assign(socket, :transcript, text)}
+    # User edits are treated as a fully-finalized transcript.
+    {:noreply,
+     socket
+     |> assign(:transcript, text)
+     |> assign(:transcript_final, text)
+     |> assign(:transcript_interim, "")}
   end
 
   @impl true
@@ -281,12 +294,32 @@ defmodule SttPlaygroundWeb.SttLive do
 
   @impl true
   def handle_info(
-        {:stt_event, %{"event" => "partial", "session_id" => sid, "text" => text}},
+        {:stt_event, %{"event" => "partial", "session_id" => sid} = payload},
         socket
       ) do
     if socket.assigns.session_id == sid do
-      merged = SttPlayground.STT.PartialMerge.merge(socket.assigns.transcript, text)
-      {:noreply, socket |> assign(:transcript, merged) |> assign(:status, "recording")}
+      final_text = Map.get(payload, "final_text", "") |> to_string() |> String.trim()
+      interim_text = Map.get(payload, "interim_text", "") |> to_string() |> String.trim()
+
+      visible =
+        [final_text, interim_text]
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.join(" ")
+
+      # Backwards compatibility: if the provider only sends `text`, treat it as interim.
+      visible =
+        case visible do
+          "" -> Map.get(payload, "text", "") |> to_string() |> String.trim()
+          other -> other
+        end
+
+      {:noreply,
+       socket
+       |> assign(:transcript_final, final_text)
+       |> assign(:transcript_interim, interim_text)
+       |> assign(:transcript, visible)
+       |> assign(:status, "recording")}
     else
       {:noreply, socket}
     end
@@ -297,9 +330,13 @@ defmodule SttPlaygroundWeb.SttLive do
         socket
       ) do
     if socket.assigns.session_id == sid do
+      text = to_string(text)
+
       {:noreply,
        socket
        |> assign(:transcript, text)
+       |> assign(:transcript_final, text)
+       |> assign(:transcript_interim, "")
        |> assign(:status, "done")
        |> assign(:session_id, nil)
        |> assign(:recording, false)}
