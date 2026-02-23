@@ -220,8 +220,22 @@ defmodule SttPlayground.TTS.GoogleHttp do
     end
   end
 
+  def fetch_token(:auto, scope), do: fetch_token(nil, scope)
+
+  def fetch_token(nil, scope) do
+    # Automatic credential discovery (ADC):
+    # - env/config JSON
+    # - GOOGLE_APPLICATION_CREDENTIALS(_JSON)
+    # - gcloud application_default_credentials.json
+    # - metadata service
+    case Goth.Token.fetch(scopes: [scope]) do
+      {:ok, %{token: token}} when is_binary(token) -> {:ok, token}
+      {:ok, %Goth.Token{token: token}} when is_binary(token) -> {:ok, token}
+      other -> {:error, other}
+    end
+  end
+
   def fetch_token(source, scope) do
-    # NOTE: Goth supports automatic discovery if source is :auto.
     case Goth.Token.fetch(source: source, scopes: [scope]) do
       {:ok, %{token: token}} when is_binary(token) -> {:ok, token}
       {:ok, %Goth.Token{token: token}} when is_binary(token) -> {:ok, token}
