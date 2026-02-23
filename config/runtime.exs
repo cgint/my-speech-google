@@ -20,6 +20,39 @@ if System.get_env("PHX_SERVER") do
   config :stt_playground, SttPlaygroundWeb.Endpoint, server: true
 end
 
+# Provider switching (env controlled)
+#
+# Backends:
+# - python  -> Port-based Python bridge
+# - google  -> Elixir-native Google APIs (STT gRPC v2, TTS HTTP)
+#
+# Use either a single switch or per-component overrides:
+# - SPEECH_BACKEND=python|google
+# - STT_BACKEND=python|google
+# - TTS_BACKEND=python|google
+speech_backend = System.get_env("SPEECH_BACKEND")
+
+stt_backend = System.get_env("STT_BACKEND") || speech_backend || "python"
+tts_backend = System.get_env("TTS_BACKEND") || speech_backend || "python"
+
+stt_provider =
+  case String.downcase(stt_backend) do
+    "python" -> SttPlayground.STT.PythonPort
+    "google" -> SttPlayground.STT.GoogleGrpc
+    other -> raise "Invalid STT_BACKEND=#{inspect(other)} (expected: python|google)"
+  end
+
+tts_provider =
+  case String.downcase(tts_backend) do
+    "python" -> SttPlayground.TTS.PythonPort
+    "google" -> SttPlayground.TTS.GoogleHttp
+    other -> raise "Invalid TTS_BACKEND=#{inspect(other)} (expected: python|google)"
+  end
+
+config :stt_playground,
+  stt_provider: stt_provider,
+  tts_provider: tts_provider
+
 if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
