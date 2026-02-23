@@ -329,7 +329,7 @@ defmodule SttPlayground.STT.GoogleGrpc do
       content = (transcript.content || "") |> String.trim()
 
       if state.trace? and content != "" do
-        Logger.debug(
+        Logger.info(
           "[stt-trace][#{state.session_id}] is_final=#{inspect(transcript.is_final)} content=#{inspect(content)}"
         )
       end
