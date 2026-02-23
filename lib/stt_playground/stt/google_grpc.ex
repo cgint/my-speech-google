@@ -191,6 +191,29 @@ defmodule SttPlayground.STT.GoogleGrpc do
 
     alias Google.Cloud.Speech.V2.ExplicitDecodingConfig
 
+    defp endpoint_from_location("global"), do: nil
+
+    defp endpoint_from_location(location) when is_binary(location) do
+      location = String.trim(location)
+
+      cond do
+        location == "" -> nil
+        location == "global" -> nil
+        true -> "#{location}-speech.googleapis.com"
+      end
+    end
+
+    defp endpoint_from_location(_), do: nil
+
+    defp endpoint_from_recognizer(recognizer) when is_binary(recognizer) do
+      case Regex.run(~r{/locations/([^/]+)/recognizers/}, recognizer) do
+        [_, location] -> endpoint_from_location(location)
+        _ -> nil
+      end
+    end
+
+    defp endpoint_from_recognizer(_), do: nil
+
     def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
 
     def push_chunk(pid, pcm_b64), do: GenServer.cast(pid, {:push_chunk, pcm_b64})
@@ -214,6 +237,11 @@ defmodule SttPlayground.STT.GoogleGrpc do
           audio_channel_count: 1
         }
 
+      endpoint =
+        Keyword.get(opts, :endpoint) ||
+          endpoint_from_recognizer(recognizer) ||
+          endpoint_from_location(System.get_env("STT_LOCATION") || "eu")
+
       ts_opts =
         [
           target: self(),
@@ -221,7 +249,8 @@ defmodule SttPlayground.STT.GoogleGrpc do
           language_codes: language_codes,
           model: model,
           interim_results: interim_results,
-          explicit_decoding_config: decoding
+          explicit_decoding_config: decoding,
+          endpoint: endpoint
         ]
         |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 

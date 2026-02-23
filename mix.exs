@@ -55,7 +55,9 @@ defmodule SttPlayground.MixProject do
       {:jason, "~> 1.2"},
       {:finch, "~> 0.19"},
       {:goth, "~> 1.4"},
-      {:ex_google_stt, "~> 0.5.1"},
+      {:ex_google_stt,
+       git: "https://github.com/j-hsieh/ex_google_stt.git",
+       ref: "b483633c375cbdf5eae7701166f6d2edea2a905d"},
       {:dspy, git: "https://github.com/cgint/dspy.ex.git"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"}
