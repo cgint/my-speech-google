@@ -1,0 +1,27 @@
+direction: down
+
+User: {
+  label: "**User**\nSpeaks / listens"
+}
+
+Capture: {
+  label: "**Audio capture**\nMic or WAV file"
+}
+
+STT: {
+  label: "**STT**\n(Option: Google Cloud STT v2 / Gemini audio)"
+}
+
+LLM: {
+  label: "**DSPy / LLM calling**\n(Existing playground reference)"
+}
+
+TTS: {
+  label: "**TTS**\n(Option: Cloud Text-to-Speech / Gemini audio)"
+}
+
+Playback: {
+  label: "**Audio playback**\nSpeaker / output WAV"
+}
+
+User -> Capture -> STT -> LLM -> TTS -> Playback -> User
