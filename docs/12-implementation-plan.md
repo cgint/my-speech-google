@@ -1,6 +1,11 @@
 # Implementation plan (self-managed)
 
-Goal: build a **fully usable speech loop prototype** in this repo that mirrors the *flow* of `voxmlx/stt_playground`, but replaces STT+TTS with **Google APIs** while keeping a **DSPy** transformation step.
+Goal: build a **fully usable speech loop prototype** in this repo that mirrors the *flow* of `voxmlx/stt_playground`, but replaces **only** STT+TTS with **Google APIs** while keeping the rest of the app structure.
+
+**Primary stack constraint:** the “main app” is **Elixir** (Phoenix/LiveView) and should **reuse ~80%+** of `voxmlx/stt_playground` as-is.
+- Keep the LiveView UI, mic streaming hook, and Elixir orchestration.
+- Keep the port-based architecture (Elixir ↔ Python workers) unless we later decide to go pure-Elixir.
+- Python-only CLIs can exist as prototypes, but must not become the primary north-star path.
 
 ## Diagram
 
@@ -8,22 +13,30 @@ Goal: build a **fully usable speech loop prototype** in this repo that mirrors t
 
 ## Plan (incremental, north-star aligned)
 
-### Milestone A — TTS-only prototype ("wav-to-speech" equivalent)
-- Provide a CLI to synthesize speech from text and play it.
+### Milestone A — TTS worker (Google-backed) integrated into Elixir app
+- Implement/replace the **TTS Python port worker** used by the Phoenix app.
+- Keep the existing port protocol so the Elixir + JS side can remain unchanged:
+  - `start_session`, `speak_text`, `audio_chunk`, `session_done`, `error`
 - Implement at least one backend:
-  - Google Cloud Text-to-Speech **or** Gemini Live audio-out.
+  - Google Cloud Text-to-Speech (ADC) **or**
+  - Gemini Live audio-out (API key)
+- Output to the browser as streamed `f32le` PCM chunks (what `stt_playground` expects today).
 
-### Milestone B — STT file prototype
-- Provide a CLI to transcribe a WAV file to text using Google Cloud Speech-to-Text v2.
-- Prefer **implicit recognizer** (`recognizers/_`) for early simplicity.
+### Milestone B — STT baseline (file) for reproducibility
+- Ensure we can transcribe a known WAV file end-to-end reproducibly (success criteria #1).
+- This can be implemented as either:
+  - a small standalone script/tool, **or**
+  - an extra command in the STT port worker (preferred if it helps integration later).
+- Prefer Google Cloud Speech-to-Text v2 with **implicit recognizer** (`recognizers/_`) for early simplicity.
 
-### Milestone C — Streaming STT (partials) from microphone
-- Mic capture (16kHz mono PCM s16le)
-- Stream audio chunks to Cloud STT v2 `streaming_recognize` (bidirectional **gRPC** stream)
-- Print partial transcripts continuously + final transcript on stop
-- Implementation pattern:
-  - first request carries `StreamingRecognitionConfig` (incl. `interim_results=true`)
-  - subsequent requests carry raw PCM chunks
+### Milestone C — Streaming STT (partials) from microphone (Elixir UI unchanged)
+- Keep the existing browser mic capture (AudioWorklet) and Elixir chunk forwarding unchanged.
+- Update only the **STT Python port worker** internals to use Google STT and emit:
+  - `partial` events during recording
+  - `final` event on stop
+- Implementation options inside the worker:
+  - True streaming: Cloud STT v2 `streaming_recognize` (bidirectional gRPC), or
+  - Pseudo-streaming: periodic `recognize` on the accumulated audio buffer (acceptable early prototype).
 
 ### Milestone D — DSPy integration
 - Add a DSPy responder that takes transcript text and produces a response.

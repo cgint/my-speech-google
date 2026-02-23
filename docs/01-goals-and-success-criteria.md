@@ -17,6 +17,10 @@
 
 **North-Star:** We have to aim for 3. straight as the initial goal overall.
 
+**Implementation constraint (explicit):** main stack is **Elixir** (Phoenix/LiveView) like `/Users/cgint/dev-external/voxmlx/stt_playground`.
+- Target: **reuse ~80%+** of that app/architecture.
+- Only swap the integrated **STT** + **TTS** implementations to **Google APIs** (everything else should stay structurally the same).
+
 **How to reach the goal:** While heading towards the goal it will be helpful to create prototypes that e.g. only do wav-to-speech (as in speak-to-me) or speech-to-text solely on files. This should help a lot in getting the red-path done without thinking about the integrateion yet - while always having the north-star (3. Loop) in mind to be clear to work towars that and so that the initial small parts can be integrated later.
 
 1) **Minimum**: can transcribe a known WAV file end-to-end reproducibly.

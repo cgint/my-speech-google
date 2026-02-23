@@ -21,6 +21,9 @@ Rules:
 - Goal: replicate the “little experiment” in this repo, but using **Google APIs** for:
   - **STT / speech-to-text** (unknown which Google API to use yet)
   - **TTS / text-to-speech** (already used elsewhere)
+- **Stack constraint (explicit):** the main stack is **Elixir** (Phoenix/LiveView), aligned with `/Users/cgint/dev-external/voxmlx/stt_playground`.
+  - We should be able to **reuse ~80%+** of that codebase/architecture **as-is**.
+  - Only the integrated **STT** and **TTS** tech should change to **Google APIs** (keep the rest of the flow intact).
 - Existing TTS: `speaks.sh` uses `/Users/christian.gintenreiter/dev/speak-to-me` (Google-TTS-based).
 - STT options noted:
   - Candidate: **Google Cloud Speech-to-Text API** (most common/default choice).
