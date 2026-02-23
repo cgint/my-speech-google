@@ -16,7 +16,7 @@ config :stt_playground, SttPlaygroundWeb.Endpoint,
   secret_key_base: "hzTsNYa9WdoAozJ+g/QoTSvTF5FMm+DiTV6U3rpK+1B6ie3C6326BxM+TkewM8fZ",
   filter_parameters: ["pcm_b64"],
   watchers: [
-    esbuild: {Esbuild, :install_and_run, [:stt_playground, ~w(--sourcemap=inline --watch)]},
+    esbuild: {Esbuild, :install_and_run, [:stt_playground, ~w(--watch)]},
     tailwind: {Tailwind, :install_and_run, [:stt_playground, ~w(--watch)]}
   ]
 
