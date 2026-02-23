@@ -10,6 +10,11 @@ This directory contains planning/analysis notes to structure the work from `../T
 - `./04-reference-implementations-and-prior-art.md`
 - `./05-mvp-proposals.md`
 - `./06-setup-and-credentials.md`
+- `./07e-validated-google-cloud-stt-links.md`
+- `./08b-gemini-live-api-transcription-validated.md`
+- `./09b-google-interactions-reality-check.md`
+- `./10-other-repos-intent-and-flow-map.md`
+- `./11-tech-picture-for-this-repo.md`
 
 ## Diagrams
 

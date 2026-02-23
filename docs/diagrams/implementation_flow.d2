@@ -1,0 +1,17 @@
+direction: down
+
+Mic: {label: "**Mic capture**\n16kHz mono PCM"}
+
+STT: {label: "**Google STT**\nCloud Speech-to-Text v2\nstreaming_recognize"}
+
+Partials: {label: "**Partial transcripts**\nprinted/updated"}
+
+Final: {label: "**Final transcript**"}
+
+DSPy: {label: "**DSPy**\ntransform text\n(Gemini LM)"}
+
+TTS: {label: "**Google TTS**\n(Gemini Live audio-out OR Cloud TTS)"}
+
+Play: {label: "**Playback**\nstream or play wav"}
+
+Mic -> STT -> Partials -> Final -> DSPy -> TTS -> Play

@@ -1,0 +1,29 @@
+[project]
+name = "my-speech-google"
+version = "0.1.0"
+description = "Speech-to-text -> DSPy -> text-to-speech loop using Google APIs"
+readme = "README.md"
+requires-python = "==3.13.*"
+dependencies = [
+  "google-cloud-speech>=2.33.0",
+  "google-cloud-texttospeech>=2.17.0",
+  "google-genai>=0.3.0",
+  "dspy-ai>=2.6.0",
+  "sounddevice>=0.4.6",
+  "numpy>=1.26.0",
+]
+
+[project.scripts]
+msg-tts = "my_speech_google.scripts.tts:main"
+msg-stt-file = "my_speech_google.scripts.stt_file:main"
+msg-stt-mic = "my_speech_google.scripts.stt_mic:main"
+msg-loop = "my_speech_google.scripts.loop:main"
+msg-roundtrip = "my_speech_google.scripts.roundtrip:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["my_speech_google", "my_speech_google.scripts"]
+package-dir = {"" = "src"}

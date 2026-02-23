@@ -1,0 +1,21 @@
+direction: down
+
+Start: {label: "**Start**\nChoose first Google speech tech"}
+
+Q1: {label: "**Need deterministic/verbatim STT?**"}
+
+Cloud: {label: "**Google Cloud STT v2**\n- gRPC\n- recognizers/_ possible\n- ADC credentials"}
+
+Gemini: {label: "**Gemini Live API**\n- websocket\n- audio in/out\n- input_transcription events\n- API key"}
+
+Q2: {label: "**Need realtime low-latency voice loop now?**"}
+
+Hybrid: {label: "**Hybrid**\nCloud STT + Gemini TTS\n(or vice versa)"}
+
+Start -> Q1
+Q1 -> Cloud: "Yes"
+Q1 -> Q2: "No / flexible"
+Q2 -> Gemini: "Yes"
+Q2 -> Cloud: "No"
+Cloud -> Hybrid: "If mixing providers"
+Gemini -> Hybrid: "If mixing providers"

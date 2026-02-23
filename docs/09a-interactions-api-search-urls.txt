@@ -1,0 +1,33 @@
+I will research the Gemini Interactions API on ai.google.dev to provide a comprehensive overview of its capabilities and usage.
+I will locate the technical documentation on ai.google.dev to extract specific details regarding the endpoint structure, request/response formats, and state management mechanisms for the Interactions API.
+I will identify the specific API endpoint and reference documentation for the Interactions API to determine if it uses a path like `v1beta/interactions` and to confirm its integration with models like Gemini 3 Flash.
+The **Gemini Interactions API**, currently in public beta on [ai.google.dev](https://ai.google.dev), represents a significant shift in how developers build stateful, agentic applications with Gemini models. Unlike the traditional `generateContent` method, which requires developers to manually manage and resend conversation history, the Interactions API introduces **server-side state management**.
+
+### Core Concepts & Technical Details
+
+*   **Unified Endpoint:** The API provides a single RESTful endpoint (typically under `v1beta/interactions`) that acts as a gateway to both standard Gemini models and specialized agents, such as **Gemini Deep Research**.
+*   **Interaction IDs:** Every request and response is associated with a unique `interaction_id`. This ID serves as a pointer to the state of the conversation at that specific point in time.
+*   **Stateful Continuation:** To maintain context, developers simply provide the `previous_interaction_id` in the next request. The server automatically retrieves the history, eliminating the need to pass massive tokens of context back and forth.
+*   **Conversation Forking:** Because any `interaction_id` can be used as a `previous_interaction_id`, developers can "fork" conversations. This allows an application to explore multiple reasoning paths or "what-if" scenarios from a single point in the dialogue.
+
+### Key Features
+
+| Feature | Description |
+| :--- | :--- |
+| **Agentic Capabilities** | Direct support for tool orchestration, function calling, and the **Model Context Protocol (MCP)** for remote tool execution. |
+| **Multimodal Input** | Supports text, images, audio, video, and PDF documents within a single interaction. |
+| **Thinking Models** | Integration with models like **Gemini 2.0 Flash Thinking** and **Gemini 3 Flash**, allowing for complex reasoning and "chain-of-thought" outputs. |
+| **Server-Side State** | Reduces client-side complexity and bandwidth by storing conversation history on Google's infrastructure. |
+
+### Interactions API vs. GenerateContent
+
+While `generateContent` remains the standard for single-turn tasks or stateless applications where low latency and API stability are paramount, the **Interactions API** is recommended for:
+1.  **Long-running Tasks:** Agents that need to perform background execution.
+2.  **Complex Multi-turn Chat:** Where managing history manually becomes cumbersome or token-expensive.
+3.  **Agentic Workflows:** Applications that rely heavily on tools, remote data sources, and autonomous reasoning.
+
+### Sources
+*   [Google AI Blog: Introducing the Interactions API](https://blog.google)
+*   [Google AI for Developers: Interactions API Documentation](https://ai.google.dev)
+*   [Gemini API Reference: Interactions Endpoint](https://ai.google.dev/api/rest/v1beta/interactions)
+*   [Technical Review: Building with Gemini Interactions](https://philschmid.de)

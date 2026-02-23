@@ -14,6 +14,8 @@ Rules:
 - Keep it short, skimmable, and dated.
 - Prefer facts/evidence; label hypotheses.
 - Don’t store secrets/credentials; don’t paste logs with sensitive data.
+- Do intermadiary commits of all md and source files to git (do NOT push) so that you have some history
+- Tech Stack is Elixir ecosystem only as in sst_playground (use asks.sh to find out information about that stack)
 
 ### 2026-02-23 — Initial intent capture
 - Goal: replicate the “little experiment” in this repo, but using **Google APIs** for:

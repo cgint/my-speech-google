@@ -1,0 +1,16 @@
+I will search for the top 10 official Google Cloud documentation URLs specifically related to Speech-to-Text streaming recognition.
+
+I will refine the search to extract the exact URLs for the top 10 official Google Cloud Speech-to-Text streaming recognition documentation pages.
+
+I will verify the top 10 official Google Cloud Speech-to-Text streaming recognition documentation URLs.
+
+https://cloud.google.com/speech-to-text/docs/streaming-recognize
+https://cloud.google.com/speech-to-text/v2/docs/streaming-recognize
+https://cloud.google.com/speech-to-text/docs/reference/rpc/google.cloud.speech.v1#google.cloud.speech.v1.StreamingRecognizeRequest
+https://cloud.google.com/speech-to-text/v2/docs/reference/rpc/google.cloud.speech.v2#google.cloud.speech.v2.StreamingRecognizeRequest
+https://cloud.google.com/speech-to-text/docs/basics#streaming_recognition
+https://cloud.google.com/speech-to-text/docs/libraries
+https://cloud.google.com/speech-to-text/docs/best-practices
+https://cloud.google.com/speech-to-text/docs/common-errors
+https://cloud.google.com/speech-to-text/docs/multiple-voices
+https://cloud.google.com/speech-to-text/docs/samples/speech-streaming-recognize
