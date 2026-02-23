@@ -314,6 +314,9 @@
       isolation: isolate;
     }
   }
+  .visible {
+    visibility: visible;
+  }
   .list {
     display: flex;
     flex-direction: column;
