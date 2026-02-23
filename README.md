@@ -1,55 +1,50 @@
 # my-speech-google
 
-A focused playground to build a **speech loop** using **Google APIs**:
+North-star (see `docs/01-goals-and-success-criteria.md`): a usable speech loop:
 
-`STT (speech-to-text) → DSPy (LLM transform) → TTS (text-to-speech)`
+**Mic → streaming STT (partials) → final transcript → respond → TTS speak back**
 
-North-star: a usable loop similar in spirit to `voxmlx/stt_playground`, but implemented in this repo.
+## Primary stack (Phase 1)
 
-## Quickstart
+The main app is **Elixir/Phoenix LiveView** (ported from `/Users/cgint/dev-external/voxmlx/stt_playground`).
+
+- The Phoenix app orchestrates the loop + UI.
+- STT/TTS are provided via **Python port workers** (Phase 1), backed by **Google APIs**.
+- Later we can replace the workers with **pure Elixir** implementations (Phase 2).
+
+## Run (Phoenix app)
 
 Prereqs:
-- `uv`
-- Audio I/O (PortAudio) working for `sounddevice`
-
-Install deps:
-
-```bash
-uv sync
-```
-
-## Scripts
-
-### 1) TTS: speak text
+- Elixir
+- `uv` (used to run the Python workers)
+- Google Cloud credentials (ADC) + Speech-to-Text / Text-to-Speech APIs enabled
 
 ```bash
-uv run msg-tts -t "Hello from Google TTS"
+mix deps.get
+mix setup
+mix phx.server
 ```
 
-### 2) STT file: transcribe a wav
+Open: http://localhost:4000
 
-```bash
-uv run msg-stt-file path/to/audio.wav
-```
+### Required env vars
 
-### 3) STT mic: streaming transcription with partials
+- `GOOGLE_CLOUD_PROJECT` (or `VERTEXAI_PROJECT`)
 
-Uses Cloud STT v2 streaming (bidirectional gRPC under the hood).
+### Optional STT env vars
 
-```bash
-uv run msg-stt-mic
-# press ENTER to stop
-```
+- `STT_LOCATION` (default: `eu`)
+- `STT_LANGUAGE_CODES` (default: `en-US`)
+- `STT_MODEL` (default: `chirp_3`)
+- `STT_RECOGNIZER_ID` (default: `_`)
 
-### 4) Full loop (North-star)
+### Optional TTS env vars
 
-```bash
-uv run msg-loop
-```
+- `TTS_VOICE_NAME` (default: `en-US-Neural2-F`)
+- `TTS_LANGUAGE_CODE` (default: `en-US`)
+- `TTS_SAMPLE_RATE_HZ` (default: `24000`)
 
-## Credentials
+## Python prototypes (still in repo)
 
-We do **not** manage `.env` here.
-
-- Cloud STT/TTS typically require ADC (e.g. `GOOGLE_APPLICATION_CREDENTIALS` + enabled APIs).
-- DSPy/Gemini uses `GEMINI_API_KEY` (or `GOOGLE_API_KEY`).
+There is also a standalone Python prototype under `src/my_speech_google/` (historical / for experience gathering).
+The Phoenix app is the primary north-star path.
