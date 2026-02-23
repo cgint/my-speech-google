@@ -5,6 +5,8 @@ defmodule SttPlayground.Application do
 
   use Application
 
+  require Logger
+
   @impl true
   def start(_type, _args) do
     children =
@@ -46,8 +48,14 @@ defmodule SttPlayground.Application do
     if start? do
       provider = stt_provider_module()
       opts = stt_provider_opts(provider)
+
+      Logger.info(
+        "[app] STT provider=#{inspect(provider)} opts=#{inspect(loggable_provider_opts(provider, opts))}"
+      )
+
       [{provider, opts}]
     else
+      Logger.info("[app] STT provider disabled (start_stt_provider=false)")
       []
     end
   end
@@ -63,8 +71,14 @@ defmodule SttPlayground.Application do
     if start? do
       provider = tts_provider_module()
       opts = tts_provider_opts(provider)
+
+      Logger.info(
+        "[app] TTS provider=#{inspect(provider)} opts=#{inspect(loggable_provider_opts(provider, opts))}"
+      )
+
       [{provider, opts}]
     else
+      Logger.info("[app] TTS provider disabled (start_tts_provider=false)")
       []
     end
   end
@@ -125,5 +139,44 @@ defmodule SttPlayground.Application do
 
   defp tts_worker_path do
     System.get_env("TTS_WORKER_PATH") || Path.expand("./tts_port_worker.py", File.cwd!())
+  end
+
+  defp loggable_provider_opts(SttPlayground.STT.PythonPort, opts) do
+    Keyword.take(opts, [
+      :worker_path,
+      :queue_max,
+      :drain_interval_ms,
+      :drain_batch_size,
+      :overload_policy
+    ])
+  end
+
+  defp loggable_provider_opts(SttPlayground.TTS.PythonPort, opts) do
+    Keyword.take(opts, [:worker_path])
+  end
+
+  defp loggable_provider_opts(SttPlayground.TTS.GoogleHttp, opts) do
+    Keyword.take(opts, [
+      :api_url,
+      :voice_name,
+      :language_code,
+      :sample_rate_hz,
+      :audio_chunk_samples,
+      :token_source
+    ])
+  end
+
+  defp loggable_provider_opts(SttPlayground.STT.GoogleGrpc, opts) do
+    Keyword.take(opts, [
+      :recognizer,
+      :language_codes,
+      :model,
+      :interim_results,
+      :finalize_after_ms
+    ])
+  end
+
+  defp loggable_provider_opts(_provider, opts) do
+    Keyword.keys(opts)
   end
 end
