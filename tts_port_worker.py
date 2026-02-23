@@ -49,11 +49,25 @@ def recv_packet() -> bytes | None:
     return payload
 
 
-def send_packet(message: dict[str, Any]) -> None:
+def send_packet(message: dict[str, Any]) -> bool:
+    """Send a framed JSON packet.
+
+    Returns False if stdout is closed (e.g. Elixir Port terminated).
+    """
+
     data = json.dumps(message).encode("utf-8")
-    sys.stdout.buffer.write(struct.pack(">I", len(data)))
-    sys.stdout.buffer.write(data)
-    sys.stdout.buffer.flush()
+    try:
+        sys.stdout.buffer.write(struct.pack(">I", len(data)))
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.flush()
+        return True
+    except (BrokenPipeError, OSError):
+        return False
+
+
+def send_packet_or_exit(message: dict[str, Any]) -> None:
+    if not send_packet(message):
+        raise SystemExit(0)
 
 
 def _env(name: str, default: str) -> str:
@@ -101,7 +115,7 @@ def chunk_f32le_bytes(f32le: bytes, *, samples_per_chunk: int = 2048) -> list[by
 def main() -> None:
     sessions: dict[str, dict[str, Any]] = {}
 
-    send_packet({"event": "ready", "ts_ms": int(time.time() * 1000)})
+    send_packet_or_exit({"event": "ready", "ts_ms": int(time.time() * 1000)})
 
     while True:
         payload = recv_packet()
@@ -111,38 +125,38 @@ def main() -> None:
         try:
             msg = json.loads(payload.decode("utf-8"))
         except Exception as e:
-            send_packet({"event": "error", "message": f"invalid json: {e}"})
+            send_packet_or_exit({"event": "error", "message": f"invalid json: {e}"})
             continue
 
         cmd = msg.get("cmd")
         session_id = str(msg.get("session_id", ""))
 
         if cmd == "shutdown":
-            send_packet({"event": "bye"})
+            send_packet_or_exit({"event": "bye"})
             break
 
         if not session_id:
-            send_packet({"event": "error", "message": "missing session_id"})
+            send_packet_or_exit({"event": "error", "message": "missing session_id"})
             continue
 
         if cmd == "start_session":
             sessions[session_id] = {"created_at_ms": int(time.time() * 1000)}
-            send_packet({"event": "session_started", "session_id": session_id})
+            send_packet_or_exit({"event": "session_started", "session_id": session_id})
             continue
 
         if cmd == "stop_session":
             sessions.pop(session_id, None)
-            send_packet({"event": "session_stopped", "session_id": session_id})
+            send_packet_or_exit({"event": "session_stopped", "session_id": session_id})
             continue
 
         if cmd == "speak_text":
             if session_id not in sessions:
-                send_packet({"event": "error", "session_id": session_id, "message": "unknown session"})
+                send_packet_or_exit({"event": "error", "session_id": session_id, "message": "unknown session"})
                 continue
 
             text = str(msg.get("text", "")).strip()
             if not text:
-                send_packet({"event": "session_done", "session_id": session_id})
+                send_packet_or_exit({"event": "session_done", "session_id": session_id})
                 continue
 
             try:
@@ -151,7 +165,7 @@ def main() -> None:
 
                 for seq, chunk in enumerate(chunk_f32le_bytes(f32le, samples_per_chunk=2048)):
                     pcm_b64 = base64.b64encode(chunk).decode("ascii")
-                    send_packet(
+                    send_packet_or_exit(
                         {
                             "event": "audio_chunk",
                             "session_id": session_id,
@@ -163,13 +177,15 @@ def main() -> None:
                         }
                     )
 
-                send_packet({"event": "session_done", "session_id": session_id})
+                send_packet_or_exit({"event": "session_done", "session_id": session_id})
             except Exception as e:
-                send_packet({"event": "error", "session_id": session_id, "message": f"tts failed: {e}"})
+                send_packet_or_exit(
+                    {"event": "error", "session_id": session_id, "message": f"tts failed: {e}"}
+                )
 
             continue
 
-        send_packet({"event": "error", "session_id": session_id, "message": f"unknown cmd: {cmd}"})
+        send_packet_or_exit({"event": "error", "session_id": session_id, "message": f"unknown cmd: {cmd}"})
 
 
 if __name__ == "__main__":

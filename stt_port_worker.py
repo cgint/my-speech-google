@@ -53,11 +53,25 @@ def recv_packet() -> bytes | None:
     return payload
 
 
-def send_packet(message: dict[str, Any]) -> None:
+def send_packet(message: dict[str, Any]) -> bool:
+    """Send a framed JSON packet.
+
+    Returns False if stdout is closed (e.g. Elixir Port terminated).
+    """
+
     data = json.dumps(message).encode("utf-8")
-    sys.stdout.buffer.write(struct.pack(">I", len(data)))
-    sys.stdout.buffer.write(data)
-    sys.stdout.buffer.flush()
+    try:
+        sys.stdout.buffer.write(struct.pack(">I", len(data)))
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.flush()
+        return True
+    except (BrokenPipeError, OSError):
+        return False
+
+
+def send_packet_or_exit(message: dict[str, Any]) -> None:
+    if not send_packet(message):
+        raise SystemExit(0)
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -181,7 +195,7 @@ def streaming_thread(session: Session) -> None:
                 # During recording we only emit partials.
                 combined = " ".join([t for t in (final_segments + ([last_interim] if last_interim else [])) if t])
                 if combined:
-                    send_packet(
+                    send_packet_or_exit(
                         {
                             "event": "partial",
                             "session_id": session.session_id,
@@ -193,8 +207,10 @@ def streaming_thread(session: Session) -> None:
         # If the stream ended naturally (rare), emit final if stop was requested.
         if session.stop_requested.is_set():
             final_text = " ".join([t for t in final_segments if t]).strip() or last_interim.strip()
-            send_packet({"event": "final", "session_id": session.session_id, "text": final_text})
+            send_packet_or_exit({"event": "final", "session_id": session.session_id, "text": final_text})
 
+    except SystemExit:
+        return
     except Exception as e:
         send_packet({"event": "error", "session_id": session.session_id, "message": str(e)})
 
@@ -203,7 +219,7 @@ def main() -> None:
     sessions: dict[str, Session] = {}
     sessions_lock = threading.Lock()
 
-    send_packet({"event": "ready", "ts_ms": int(time.time() * 1000)})
+    send_packet_or_exit({"event": "ready", "ts_ms": int(time.time() * 1000)})
 
     while True:
         payload = recv_packet()
@@ -213,18 +229,18 @@ def main() -> None:
         try:
             msg = json.loads(payload.decode("utf-8"))
         except Exception as e:
-            send_packet({"event": "error", "message": f"invalid json: {e}"})
+            send_packet_or_exit({"event": "error", "message": f"invalid json: {e}"})
             continue
 
         cmd = msg.get("cmd")
         session_id = str(msg.get("session_id", ""))
 
         if cmd == "shutdown":
-            send_packet({"event": "bye"})
+            send_packet_or_exit({"event": "bye"})
             break
 
         if not session_id:
-            send_packet({"event": "error", "message": "missing session_id"})
+            send_packet_or_exit({"event": "error", "message": "missing session_id"})
             continue
 
         if cmd == "start_session":
@@ -235,27 +251,31 @@ def main() -> None:
                 sessions[session_id] = session
 
             t.start()
-            send_packet({"event": "session_started", "session_id": session_id})
+            send_packet_or_exit({"event": "session_started", "session_id": session_id})
             continue
 
         if cmd == "audio_chunk":
             with sessions_lock:
                 session = sessions.get(session_id)
             if session is None:
-                send_packet({"event": "error", "session_id": session_id, "message": "unknown session"})
+                send_packet_or_exit(
+                    {"event": "error", "session_id": session_id, "message": "unknown session"}
+                )
                 continue
 
             pcm_b64 = msg.get("pcm_b64", "")
             try:
                 pcm_f32le = base64.b64decode(pcm_b64)
             except Exception:
-                send_packet({"event": "error", "session_id": session_id, "message": "invalid base64"})
+                send_packet_or_exit({"event": "error", "session_id": session_id, "message": "invalid base64"})
                 continue
 
             try:
                 pcm_s16le = f32le_16k_mono_to_s16le(pcm_f32le)
             except Exception as e:
-                send_packet({"event": "error", "session_id": session_id, "message": f"pcm convert failed: {e}"})
+                send_packet_or_exit(
+                    {"event": "error", "session_id": session_id, "message": f"pcm convert failed: {e}"}
+                )
                 continue
 
             session.chunk_count += 1
@@ -267,7 +287,9 @@ def main() -> None:
                 session = sessions.pop(session_id, None)
 
             if session is None:
-                send_packet({"event": "error", "session_id": session_id, "message": "unknown session"})
+                send_packet_or_exit(
+                    {"event": "error", "session_id": session_id, "message": "unknown session"}
+                )
                 continue
 
             # Signal the streaming thread to end the request generator.
@@ -280,7 +302,7 @@ def main() -> None:
             # In that case Elixir will get an "error" event.
             continue
 
-        send_packet({"event": "error", "session_id": session_id, "message": f"unknown cmd: {cmd}"})
+        send_packet_or_exit({"event": "error", "session_id": session_id, "message": f"unknown cmd: {cmd}"})
 
 
 if __name__ == "__main__":

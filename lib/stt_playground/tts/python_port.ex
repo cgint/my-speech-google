@@ -15,18 +15,41 @@ defmodule SttPlayground.TTS.PythonPort do
   @impl true
   def init(opts) do
     worker_path = Keyword.fetch!(opts, :worker_path)
-    uv = System.find_executable("uv") || raise "uv not found in PATH"
+
+    runner = Keyword.get(opts, :runner, :uv)
+
+    {exec, args} =
+      case runner do
+        :python ->
+          py =
+            System.find_executable("python3") || System.find_executable("python") ||
+              raise "python not found in PATH"
+
+          {py, [worker_path]}
+
+        :uv ->
+          uv = System.find_executable("uv") || raise "uv not found in PATH"
+          {uv, ["run", "python", worker_path]}
+
+        other ->
+          raise "unknown runner: #{inspect(other)}"
+      end
 
     port =
-      Port.open({:spawn_executable, uv}, [
+      Port.open({:spawn_executable, exec}, [
         :binary,
         {:packet, 4},
         :exit_status,
-        {:args, ["run", "python", worker_path]},
+        {:args, args},
+        {:env,
+         [
+           {~c"PYTHONWARNINGS", ~c"ignore:resource_tracker:UserWarning"}
+         ]},
         {:cd, Path.dirname(worker_path)}
       ])
 
     Logger.info("[tts-port] started python worker=#{worker_path}")
+    emit([:worker, :started], %{count: 1}, %{component: :python_port})
 
     {:ok, %{port: port, sessions: %{}, owner_refs: %{}, session_refs: %{}}}
   end
@@ -67,8 +90,13 @@ defmodule SttPlayground.TTS.PythonPort do
           send(owner, {:tts_event, msg})
         end
 
+        if event == "ready" do
+          Logger.info("[tts-port] python worker ready")
+          emit([:worker, :ready], %{count: 1}, %{component: :python_port})
+        end
+
         state =
-          if event in ["session_done", "error"] and is_binary(session_id) do
+          if event in ["session_done", "session_stopped", "error"] and is_binary(session_id) do
             cleanup_session(state, session_id)
           else
             state
@@ -78,12 +106,14 @@ defmodule SttPlayground.TTS.PythonPort do
 
       {:error, reason} ->
         Logger.error("[tts-port] invalid payload from python: #{inspect(reason)}")
+        emit([:worker, :invalid_payload], %{count: 1}, %{component: :python_port})
         {:noreply, state}
     end
   end
 
   def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
     Logger.error("[tts-port] python worker exited status=#{status}")
+    emit([:worker, :exit], %{count: 1}, %{status: status})
     {:stop, {:python_exit, status}, state}
   end
 
@@ -132,6 +162,10 @@ defmodule SttPlayground.TTS.PythonPort do
       end
 
     update_in(state.sessions, &Map.delete(&1, session_id))
+  end
+
+  defp emit(event_suffix, measurements, metadata) do
+    :telemetry.execute([:stt_playground, :tts] ++ event_suffix, measurements, metadata)
   end
 
   defp send_to_python(port, msg) do
