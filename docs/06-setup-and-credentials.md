@@ -17,10 +17,16 @@ Evidence from `standard_tts.py` + `chirp_speech_recognition.py`:
 
 ### APIs to enable (project-side)
 
-- Cloud Speech-to-Text
-- Cloud Text-to-Speech
+- **Speech-to-Text API**
+- **Text-to-Speech API**
 
-(Exact enablement steps are intentionally not written here yet; we’ll add them once we confirm the chosen APIs and whether you use gcloud or console.)
+Minimal enablement steps (console):
+1. Google Cloud Console → **APIs & Services** → **Library**
+2. Search and enable:
+   - “Speech-to-Text API”
+   - “Text-to-Speech API”
+
+(We keep this high-level; exact org policies / billing / quota handling varies by project.)
 
 ### Region / endpoint
 
@@ -43,9 +49,22 @@ Risks:
 
 ## Audio format conventions to settle early
 
-We should decide and document:
-- sample rate (16k vs 24k)
-- channels (mono)
-- encoding (PCM s16le vs WAV container)
+Recommended baseline for STT streaming:
+- **16,000 Hz** sample rate
+- **mono**
+- **PCM16 / LINEAR16** (signed 16-bit little endian)
 
-Reason: STT/TTS endpoints often require strict format matching; many “it doesn’t work” issues are audio-format mismatches.
+Notes:
+- Cloud STT streaming is gRPC-based; you stream **raw PCM chunks** (not a WAV container) when doing live mic capture.
+- File-based recognize is simpler because you can send the full file content (often with auto-decoding).
+- Some TTS backends (e.g. Gemini Live) may emit **24kHz** PCM; either resample or play at native rate.
+
+Reason: STT/TTS endpoints require strict format matching; most "it doesn’t work" issues are audio-format mismatches.
+
+## Local audio capture libraries (Python)
+
+You need one working mic capture option:
+- `sounddevice` (PortAudio-based; what we use in this repo’s prototype)
+- or `pyaudio` (also PortAudio-based; common in examples)
+
+If mic capture fails, fix system PortAudio/audio permissions first before debugging STT.

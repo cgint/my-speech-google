@@ -19,8 +19,11 @@ Goal: build a **fully usable speech loop prototype** in this repo that mirrors t
 
 ### Milestone C — Streaming STT (partials) from microphone
 - Mic capture (16kHz mono PCM s16le)
-- Stream audio chunks to Cloud STT v2 `streaming_recognize`
+- Stream audio chunks to Cloud STT v2 `streaming_recognize` (bidirectional **gRPC** stream)
 - Print partial transcripts continuously + final transcript on stop
+- Implementation pattern:
+  - first request carries `StreamingRecognitionConfig` (incl. `interim_results=true`)
+  - subsequent requests carry raw PCM chunks
 
 ### Milestone D — DSPy integration
 - Add a DSPy responder that takes transcript text and produces a response.

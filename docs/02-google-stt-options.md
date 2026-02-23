@@ -22,7 +22,16 @@
 
 **Open items to validate**
 - Which models are available/allowed in your project+region.
-- Whether we need **streaming** recognition (partials) and what the v2 streaming API surface looks like in Python.
+- Streaming limits/duration and recommended restart patterns for long-running sessions (needs confirmation in Cloud STT v2 docs).
+
+**Streaming recognition mechanics (what we now know / what to implement)**
+- **Streaming STT is gRPC-based**: for real-time interim/final transcripts you use a **bidirectional stream** (the Python client library wraps this).
+- Request flow (typical pattern):
+  - First message contains `StreamingRecognitionConfig` (language/model/decoding + `interim_results=true`).
+  - Subsequent messages contain raw audio bytes (PCM chunks).
+- Output flow:
+  - **Interim** results are best-effort hypotheses that update as you keep speaking.
+  - **Final** results are emitted when end-of-speech/pause is detected.
 
 ---
 

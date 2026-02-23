@@ -34,6 +34,8 @@ uv run msg-stt-file path/to/audio.wav
 
 ### 3) STT mic: streaming transcription with partials
 
+Uses Cloud STT v2 streaming (bidirectional gRPC under the hood).
+
 ```bash
 uv run msg-stt-mic
 # press ENTER to stop
