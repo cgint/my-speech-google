@@ -142,7 +142,9 @@ def streaming_thread(session: Session) -> None:
 
         streaming_config = speech_v2.StreamingRecognitionConfig(
             config=recognition_config,
-            interim_results=True,
+            streaming_features=speech_v2.StreamingRecognitionFeatures(
+                interim_results=True,
+            ),
         )
 
         final_segments: list[str] = []
