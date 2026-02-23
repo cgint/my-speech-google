@@ -15,6 +15,7 @@ defmodule SttPlayground.Application do
         {DNSCluster, query: Application.get_env(:stt_playground, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: SttPlayground.PubSub}
       ] ++
+        maybe_grpc_client_children() ++
         maybe_http_client_children() ++
         maybe_stt_provider_child() ++
         maybe_tts_provider_child() ++
@@ -79,6 +80,21 @@ defmodule SttPlayground.Application do
       [{provider, opts}]
     else
       Logger.info("[app] TTS provider disabled (start_tts_provider=false)")
+      []
+    end
+  end
+
+  defp maybe_grpc_client_children do
+    start_stt? =
+      Application.get_env(
+        :stt_playground,
+        :start_stt_provider,
+        Application.get_env(:stt_playground, :start_python_port, true)
+      )
+
+    if start_stt? and stt_provider_module() == SttPlayground.STT.GoogleGrpc do
+      [{GRPC.Client.Supervisor, []}]
+    else
       []
     end
   end
