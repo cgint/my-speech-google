@@ -1,0 +1,84 @@
+direction: down
+
+app: "**Phoenix / LiveView app**" {
+  style.fill: "#E8F0FE"
+
+  ui: "LiveView / session process" {
+    style.fill: "#FFFFFF"
+  }
+
+  stt_facade: "**SttPlayground.STT**\n(facade)" {
+    style.fill: "#FFFFFF"
+  }
+
+  tts_facade: "**SttPlayground.TTS**\n(facade)" {
+    style.fill: "#FFFFFF"
+  }
+
+  config: "config: select provider module" {
+    style.fill: "#FFFFFF"
+  }
+}
+
+python: "**python_external providers**" {
+  style.fill: "#FEF7E0"
+
+  stt_py: "STT Provider: PythonPort\n(Elixir GenServer + Port)" {
+    style.fill: "#FFFFFF"
+  }
+  tts_py: "TTS Provider: PythonPort\n(Elixir GenServer + Port)" {
+    style.fill: "#FFFFFF"
+  }
+  workers: "Python workers\n(STT/TTS)" {
+    style.fill: "#FFFFFF"
+  }
+}
+
+elixir: "**elixir_google providers**" {
+  style.fill: "#E6F4EA"
+
+  stt_grpc: "STT Provider: GoogleGrpc\n(ex_google_stt + Goth)" {
+    style.fill: "#FFFFFF"
+  }
+  tts_http: "TTS Provider: GoogleHttp\n(Finch + Goth)" {
+    style.fill: "#FFFFFF"
+  }
+}
+
+cloud: "**Google Cloud APIs**" {
+  style.fill: "#F1F3F4"
+
+  stt_api: "Speech-to-Text v2\nStreamingRecognize (gRPC)" {
+    style.fill: "#FFFFFF"
+  }
+
+  tts_api: "Text-to-Speech\n(text:synthesize HTTP)" {
+    style.fill: "#FFFFFF"
+  }
+}
+
+app.ui -> app.stt_facade: "start_session/audio_chunk/stop_session"
+app.ui -> app.tts_facade: "start_session/speak_text/stop_session"
+
+app.stt_facade -> app.config
+app.tts_facade -> app.config
+
+app.config -> python.stt_py: "option A"
+app.config -> python.tts_py: "option A"
+
+app.config -> elixir.stt_grpc: "option B"
+app.config -> elixir.tts_http: "option B"
+
+python.stt_py -> python.workers: "Port JSON packets"
+python.tts_py -> python.workers: "Port JSON packets"
+python.workers -> cloud.stt_api
+python.workers -> cloud.tts_api
+
+elixir.stt_grpc -> cloud.stt_api
+elixir.tts_http -> cloud.tts_api
+
+python.stt_py -> app.ui: "{:stt_event, map}"
+elixir.stt_grpc -> app.ui: "{:stt_event, map}"
+
+python.tts_py -> app.ui: "{:tts_event, map}"
+elixir.tts_http -> app.ui: "{:tts_event, map}"
