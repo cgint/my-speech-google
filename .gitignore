@@ -13,6 +13,9 @@ chat_log_*.txt
 chat_history_log
 nav_rss_cache/
 
+# Local logs
+start_dev.log
+
 storage/
 
 # Generated graphs and visualizations
