@@ -285,7 +285,8 @@ defmodule SttPlaygroundWeb.SttLive do
         socket
       ) do
     if socket.assigns.session_id == sid do
-      {:noreply, socket |> assign(:transcript, text) |> assign(:status, "recording")}
+      merged = SttPlayground.STT.PartialMerge.merge(socket.assigns.transcript, text)
+      {:noreply, socket |> assign(:transcript, merged) |> assign(:status, "recording")}
     else
       {:noreply, socket}
     end
