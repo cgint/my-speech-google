@@ -61,4 +61,87 @@ defmodule SttPlayground.STT.GoogleGrpcTest do
                     }},
                    500
   end
+
+  test "Session keeps final_text monotonic across volatile interim updates" do
+    {:ok, pid} =
+      Session.start_link(
+        session_id: "s2",
+        owner_pid: self(),
+        recognizer: "projects/p/locations/eu/recognizers/_",
+        finalize_after_ms: 20,
+        transcription_server_module: FakeTranscriptionServer
+      )
+
+    send(pid, {:stt_event, %ExGoogleSTT.Transcript{content: "okay", is_final: false}})
+
+    assert_receive {:stt_event,
+                    %{
+                      "event" => "partial",
+                      "session_id" => "s2",
+                      "final_text" => "",
+                      "interim_text" => "okay"
+                    }},
+                   200
+
+    send(
+      pid,
+      {:stt_event, %ExGoogleSTT.Transcript{content: "okay so this is the Moon", is_final: true}}
+    )
+
+    assert_receive {:stt_event,
+                    %{
+                      "event" => "partial",
+                      "session_id" => "s2",
+                      "final_text" => "okay so this is the Moon",
+                      "interim_text" => ""
+                    }},
+                   200
+
+    # Volatile interims should not change final_text
+    send(pid, {:stt_event, %ExGoogleSTT.Transcript{content: "and", is_final: false}})
+
+    assert_receive {:stt_event,
+                    %{
+                      "event" => "partial",
+                      "session_id" => "s2",
+                      "final_text" => "okay so this is the Moon",
+                      "interim_text" => "and"
+                    }},
+                   200
+
+    send(pid, {:stt_event, %ExGoogleSTT.Transcript{content: "and this is", is_final: false}})
+
+    assert_receive {:stt_event,
+                    %{
+                      "event" => "partial",
+                      "session_id" => "s2",
+                      "final_text" => "okay so this is the Moon",
+                      "interim_text" => "and this is"
+                    }},
+                   200
+
+    send(
+      pid,
+      {:stt_event, %ExGoogleSTT.Transcript{content: "and this is the Sun", is_final: true}}
+    )
+
+    assert_receive {:stt_event,
+                    %{
+                      "event" => "partial",
+                      "session_id" => "s2",
+                      "final_text" => "okay so this is the Moon and this is the Sun",
+                      "interim_text" => ""
+                    }},
+                   200
+
+    Session.stop(pid)
+
+    assert_receive {:stt_event,
+                    %{
+                      "event" => "final",
+                      "session_id" => "s2",
+                      "text" => "okay so this is the Moon and this is the Sun"
+                    }},
+                   500
+  end
 end
