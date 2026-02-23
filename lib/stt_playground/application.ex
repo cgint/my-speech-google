@@ -13,6 +13,7 @@ defmodule SttPlayground.Application do
         {DNSCluster, query: Application.get_env(:stt_playground, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: SttPlayground.PubSub}
       ] ++
+        maybe_http_client_children() ++
         maybe_stt_provider_child() ++
         maybe_tts_provider_child() ++
         [
@@ -63,6 +64,21 @@ defmodule SttPlayground.Application do
       provider = tts_provider_module()
       opts = tts_provider_opts(provider)
       [{provider, opts}]
+    else
+      []
+    end
+  end
+
+  defp maybe_http_client_children do
+    start_tts? =
+      Application.get_env(
+        :stt_playground,
+        :start_tts_provider,
+        Application.get_env(:stt_playground, :start_tts_port, true)
+      )
+
+    if start_tts? and tts_provider_module() == SttPlayground.TTS.GoogleHttp do
+      [{Finch, name: SttPlayground.Finch}]
     else
       []
     end

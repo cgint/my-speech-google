@@ -53,6 +53,8 @@ defmodule SttPlayground.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
+      {:finch, "~> 0.19"},
+      {:goth, "~> 1.4"},
       {:dspy, git: "https://github.com/cgint/dspy.ex.git"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"}
