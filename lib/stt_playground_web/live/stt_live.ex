@@ -158,21 +158,27 @@ defmodule SttPlaygroundWeb.SttLive do
       {:noreply, socket}
     else
       session_id = Integer.to_string(System.unique_integer([:positive]))
-      :ok = SttPlayground.STT.PythonPort.start_session(session_id, self())
-      Logger.info("[live][#{session_id}] start")
 
-      {:noreply,
-       socket
-       |> assign(:recording, true)
-       |> assign(:status, "recording")
-       |> assign(:session_id, session_id)}
+      case SttPlayground.STT.start_session(session_id, self()) do
+        :ok ->
+          Logger.info("[live][#{session_id}] start")
+
+          {:noreply,
+           socket
+           |> assign(:recording, true)
+           |> assign(:status, "recording")
+           |> assign(:session_id, session_id)}
+
+        {:error, reason} ->
+          {:noreply, assign(socket, :status, "stt start error: #{inspect(reason)}")}
+      end
     end
   end
 
   @impl true
   def handle_event("audio_chunk", %{"pcm_b64" => pcm_b64}, socket) do
     if session_id = socket.assigns.session_id do
-      SttPlayground.STT.PythonPort.push_chunk(session_id, pcm_b64)
+      _ = SttPlayground.STT.push_chunk(session_id, pcm_b64)
     end
 
     {:noreply, socket}
@@ -181,7 +187,7 @@ defmodule SttPlaygroundWeb.SttLive do
   @impl true
   def handle_event("stop_stream", _params, socket) do
     if session_id = socket.assigns.session_id do
-      SttPlayground.STT.PythonPort.stop_session(session_id)
+      _ = SttPlayground.STT.stop_session(session_id)
       Logger.info("[live][#{session_id}] stop")
     end
 
@@ -257,11 +263,17 @@ defmodule SttPlaygroundWeb.SttLive do
   end
 
   defp start_tts_session_and_speak(text) do
-    if Process.whereis(SttPlayground.TTS.PythonPort) do
+    if Process.whereis(SttPlayground.TTS.provider_module()) do
       session_id = Integer.to_string(System.unique_integer([:positive]))
-      :ok = SttPlayground.TTS.PythonPort.start_session(session_id, self())
-      SttPlayground.TTS.PythonPort.speak_text(session_id, text)
-      {:ok, session_id, text}
+
+      case SttPlayground.TTS.start_session(session_id, self()) do
+        :ok ->
+          _ = SttPlayground.TTS.speak_text(session_id, text)
+          {:ok, session_id, text}
+
+        {:error, reason} ->
+          {:error, "tts start error: #{inspect(reason)}"}
+      end
     else
       {:error, "tts worker not running"}
     end
@@ -334,8 +346,8 @@ defmodule SttPlaygroundWeb.SttLive do
 
   def handle_info({:tts_event, %{"event" => "session_done", "session_id" => sid}}, socket) do
     if socket.assigns.tts_session_id == sid do
-      if Process.whereis(SttPlayground.TTS.PythonPort) do
-        SttPlayground.TTS.PythonPort.stop_session(sid)
+      if Process.whereis(SttPlayground.TTS.provider_module()) do
+        _ = SttPlayground.TTS.stop_session(sid)
       end
 
       {:noreply,

@@ -13,8 +13,8 @@ defmodule SttPlayground.Application do
         {DNSCluster, query: Application.get_env(:stt_playground, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: SttPlayground.PubSub}
       ] ++
-        maybe_python_port_child() ++
-        maybe_tts_port_child() ++
+        maybe_stt_provider_child() ++
+        maybe_tts_provider_child() ++
         [
           # Start to serve requests, typically the last entry
           SttPlaygroundWeb.Endpoint
@@ -34,53 +34,77 @@ defmodule SttPlayground.Application do
     :ok
   end
 
-  defp maybe_python_port_child do
-    if Application.get_env(:stt_playground, :start_python_port, true) do
-      [
-        %{
-          id: SttPlayground.STT.PythonPort,
-          start:
-            {SttPlayground.STT.PythonPort, :start_link,
-             [
-               [
-                 worker_path: worker_path(),
-                 queue_max: Application.get_env(:stt_playground, :stt_queue_max, 128),
-                 drain_interval_ms:
-                   Application.get_env(:stt_playground, :stt_drain_interval_ms, 10),
-                 drain_batch_size:
-                   Application.get_env(:stt_playground, :stt_drain_batch_size, 32),
-                 overload_policy:
-                   Application.get_env(:stt_playground, :stt_overload_policy, :drop_newest)
-               ]
-             ]},
-          restart: :permanent,
-          shutdown: 5_000,
-          type: :worker
-        }
-      ]
+  defp maybe_stt_provider_child do
+    start? =
+      Application.get_env(
+        :stt_playground,
+        :start_stt_provider,
+        Application.get_env(:stt_playground, :start_python_port, true)
+      )
+
+    if start? do
+      provider = stt_provider_module()
+      opts = stt_provider_opts(provider)
+      [{provider, opts}]
     else
       []
     end
+  end
+
+  defp maybe_tts_provider_child do
+    start? =
+      Application.get_env(
+        :stt_playground,
+        :start_tts_provider,
+        Application.get_env(:stt_playground, :start_tts_port, true)
+      )
+
+    if start? do
+      provider = tts_provider_module()
+      opts = tts_provider_opts(provider)
+      [{provider, opts}]
+    else
+      []
+    end
+  end
+
+  defp stt_provider_module do
+    Application.get_env(:stt_playground, :stt_provider, SttPlayground.STT.PythonPort)
+  end
+
+  defp tts_provider_module do
+    Application.get_env(:stt_playground, :tts_provider, SttPlayground.TTS.PythonPort)
+  end
+
+  defp stt_provider_opts(SttPlayground.STT.PythonPort) do
+    base = [
+      worker_path: worker_path(),
+      queue_max: Application.get_env(:stt_playground, :stt_queue_max, 128),
+      drain_interval_ms: Application.get_env(:stt_playground, :stt_drain_interval_ms, 10),
+      drain_batch_size: Application.get_env(:stt_playground, :stt_drain_batch_size, 32),
+      overload_policy: Application.get_env(:stt_playground, :stt_overload_policy, :drop_newest)
+    ]
+
+    user = Application.get_env(:stt_playground, :stt_provider_opts, [])
+    Keyword.merge(base, user)
+  end
+
+  defp stt_provider_opts(_other_provider) do
+    Application.get_env(:stt_playground, :stt_provider_opts, [])
+  end
+
+  defp tts_provider_opts(SttPlayground.TTS.PythonPort) do
+    base = [worker_path: tts_worker_path()]
+    user = Application.get_env(:stt_playground, :tts_provider_opts, [])
+    Keyword.merge(base, user)
+  end
+
+  defp tts_provider_opts(_other_provider) do
+    Application.get_env(:stt_playground, :tts_provider_opts, [])
   end
 
   defp worker_path do
     System.get_env("STT_WORKER_PATH") || Path.expand("./stt_port_worker.py", File.cwd!())
-  end
-
-  defp maybe_tts_port_child do
-    if Application.get_env(:stt_playground, :start_tts_port, true) do
-      [
-        %{
-          id: SttPlayground.TTS.PythonPort,
-          start: {SttPlayground.TTS.PythonPort, :start_link, [[worker_path: tts_worker_path()]]},
-          restart: :permanent,
-          shutdown: 5_000,
-          type: :worker
-        }
-      ]
-    else
-      []
-    end
   end
 
   defp tts_worker_path do

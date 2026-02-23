@@ -9,10 +9,17 @@ import Config
 
 config :stt_playground,
   generators: [timestamp_type: :utc_datetime],
+  # Provider selection (switchable backends)
+  stt_provider: SttPlayground.STT.PythonPort,
+  tts_provider: SttPlayground.TTS.PythonPort,
+  stt_provider_opts: [],
+  tts_provider_opts: [],
+  # STT (PythonPort defaults)
   stt_queue_max: 128,
   stt_drain_interval_ms: 10,
   stt_drain_batch_size: 32,
   stt_overload_policy: :drop_newest,
+  # AI responder
   dspy_diagrammer_module: SttPlayground.AI.DSPyResponder,
   dspy_model: "gemini-2.5-flash",
   dspy_context_hints: ""
