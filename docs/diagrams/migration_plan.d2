@@ -1,0 +1,45 @@
+direction: down
+
+north_star: {
+  label: "**North-Star (3):** Mic → partial STT → final → respond → TTS"
+}
+
+phase1: {
+  label: "**Phase 1 (ship):** Elixir app + Python port workers (Google APIs)"
+  style.fill: "#E8F5E9"
+
+  browser: "Browser (Mic + Playback)"
+  phoenix: "Phoenix/LiveView (main app)"
+  stt_port: "STT Provider (Port)"
+  tts_port: "TTS Provider (Port)"
+  py_stt: "Python STT worker\nCloud STT v2 streaming"
+  py_tts: "Python TTS worker\nCloud/Gemini TTS"
+
+  browser -> phoenix: "audio chunks (f32le@16k)"
+  phoenix -> stt_port: "provider API"
+  stt_port -> py_stt: "port msg (start/chunk/stop)"
+  py_stt -> stt_port: "partial/final events"
+  stt_port -> phoenix: "partial/final"
+  phoenix -> tts_port: "text to speak"
+  tts_port -> py_tts: "port msg (speak_text)"
+  py_tts -> tts_port: "audio_chunk (f32le@24k)"
+  tts_port -> phoenix: "audio_chunk"
+  phoenix -> browser: "playback (float32 chunks)"
+}
+
+phase2: {
+  label: "**Phase 2 (consolidate):** Elixir-only Google clients"
+  style.fill: "#E3F2FD"
+
+  phoenix2: "Phoenix/LiveView (unchanged)"
+  stt_native: "STT Provider (native)\nREST (file) → gRPC streaming"
+  tts_native: "TTS Provider (native)\nREST synth + chunking"
+
+  phoenix2 -> stt_native: "same provider API"
+  stt_native -> phoenix2: "same partial/final events"
+  phoenix2 -> tts_native: "same speak(text) API"
+  tts_native -> phoenix2: "audio chunks"
+}
+
+north_star -> phase1
+phase1 -> phase2: "Swap provider impl\n(no UI changes)"
