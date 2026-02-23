@@ -35,7 +35,7 @@ defmodule SttPlayground.STT.GoogleGrpc do
       recognizer:
         Keyword.get(opts, :recognizer, recognizer_from_env() || recognizer_from_config()),
       language_codes: Keyword.get(opts, :language_codes, language_codes_from_env()),
-      model: Keyword.get(opts, :model, System.get_env("STT_MODEL") || "latest_long"),
+      model: Keyword.get(opts, :model, System.get_env("STT_MODEL") || "chirp_3"),
       interim_results: Keyword.get(opts, :interim_results, true),
       finalize_after_ms: Keyword.get(opts, :finalize_after_ms, 600),
       token_scope: Keyword.get(opts, :token_scope, @default_scope),
