@@ -1,0 +1,9 @@
+id	wav_path	voice	lang_hint	text
+
+de_short_anna	bench_audio/de_short_anna_16k_mono_pcm16.wav	Anna	de-DE	Das war die Feinart-Produktion.
+de_long_anna	bench_audio/de_long_anna_16k_mono_pcm16.wav	Anna	de-DE	Das war die Feinart-Produktion. Wir testen die Spracherkennung mit Google und Gemini. Bitte schreibe den Text genau auf.
+en_short_samantha	bench_audio/en_short_samantha_16k_mono_pcm16.wav	Samantha	en-US	This is a speech to text test.
+mixed_anna	bench_audio/mixed_anna_16k_mono_pcm16.wav	Anna	de-DE,en-US	Das war die Feinart-Produktion. This is a quick A B C test.
+de_3sent_anna	bench_audio/de_3sent_anna_16k_mono_pcm16.wav	Anna	de-DE	Das war die Feinart-Produktion. Heute testen wir die Spracherkennung. Bitte schreibe alles so wörtlich wie möglich.
+en_3sent_samantha	bench_audio/en_3sent_samantha_16k_mono_pcm16.wav	Samantha	en-US	This is a speech to text benchmark. Today we test punctuation and numbers like 42. Please transcribe everything as literally as possible.
+de_3sent_propernouns_anna	bench_audio/de_3sent_propernouns_anna_16k_mono_pcm16.wav	Anna	de-DE	Das war die Feinart-Produktion. Christian Gintenreiter testet VoxMLX in SttPlayground. Bitte transkribiere Phoenix LiveView und Elixir genau.

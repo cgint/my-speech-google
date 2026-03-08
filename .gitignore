@@ -4,7 +4,11 @@ __pycache__/
 .DS_Store
 *invoi*.csv
 *.pkl
+*.wav
+*.aiff
 
+# Allow committed benchmark audio fixtures (kept small and repeatable)
+!bench_audio/*.wav
 
 # Chat history files
 chat_history_log/
