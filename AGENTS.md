@@ -35,6 +35,20 @@ Rules:
 - Prior art: Mistral Voxtral online API worked well; realtime streaming transcription integration exists in:
   - `/Users/christian.gintenreiter/dev/elix-live-chat/lib/live_ai_chat/mistral/realtime_transcription_ws.ex`
 
+### 2026-03-08 — STT comparison harness + benchmark (notes)
+
+We built a small, repeatable comparison harness (file-in → text-out):
+- Scripts: `./stt_file_google.py`, `./stt_file_gemini.py`, runner `./bench_compare.sh`
+- Benchmark WAV set: `bench_audio/` (see `bench_audio/manifest.tsv`)
+
+Durable details (exact transcripts, timings, caveats, next steps):
+- **`docs/stt-benchmark-findings.md`**
+
+Key takeaways to remember
+- Google STT v2 batch (`recognize`) is fastest on short clips; Gemini was slower but sometimes preserved German domain-ish tokens better.
+- Do not judge real-time UX from “stream replay” timings (startup overhead dominates short files).
+- Plan for a context-aware post-processing layer (normalization + domain dictionary + optional gated LLM correction).
+
 ### Open questions (not for top-of-doc)
 - What is the *minimum viable* experiment we want here (batch transcription vs streaming; single file vs microphone)?
 - Which Google offering is the intended target (Cloud STT v2, Gemini audio models, “Interactions”)?
